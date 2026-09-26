@@ -47,6 +47,7 @@ export default function AuthPage() {
   const [role, setRole]                 = useState("Attendee");
   const [organization, setOrg]          = useState("");
   const [error, setError]               = useState("");
+  const [successMsg, setSuccessMsg]     = useState("");
   const [busy, setBusy]                 = useState(false);
   const [pendingModal, setPendingModal] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -78,6 +79,7 @@ export default function AuthPage() {
   async function handleLogin(e) {
     e.preventDefault();
     setError("");
+    setSuccessMsg("");
     setBusy(true);
 
     try {
@@ -364,11 +366,17 @@ export default function AuthPage() {
 
         setPendingModal(approvalRequest);
         setMode("login");
+        setPass("");
+        setEmail(cleanEmail);
+        setSuccessMsg(`Registration submitted for ${newUser.name}! Your ${role === "VendorVenueManager" ? "Vendor / Venue" : role} account is pending Admin Verification before you can log in.`);
         return;
       }
 
-      // Attendee or Admin: Immediate access
-      login(newUser);
+      // Attendee: Never log in directly to dashboard — redirect to login page with pre-filled email
+      setMode("login");
+      setPass("");
+      setEmail(cleanEmail);
+      setSuccessMsg(`✓ Account created successfully for ${newUser.name}! Please enter your password to sign in.`);
     } catch (err) {
       setError(err.message || "Registration encountered an issue.");
     } finally {
@@ -538,7 +546,7 @@ export default function AuthPage() {
           >
             <button
               type="button"
-              onClick={() => { setMode("login"); setError(""); }}
+              onClick={() => { setMode("login"); setError(""); setSuccessMsg(""); }}
               style={{
                 flex: 1,
                 padding: "8px 0",
@@ -556,7 +564,7 @@ export default function AuthPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setMode("signup"); setError(""); }}
+              onClick={() => { setMode("signup"); setError(""); setSuccessMsg(""); }}
               style={{
                 flex: 1,
                 padding: "8px 0",
@@ -573,6 +581,26 @@ export default function AuthPage() {
               Create Account
             </button>
           </div>
+
+          {successMsg && (
+            <div
+              style={{
+                padding: "10px 14px",
+                background: "rgba(16, 185, 129, 0.12)",
+                border: "1px solid rgba(16, 185, 129, 0.35)",
+                borderRadius: "10px",
+                color: "#6ee7b7",
+                fontSize: 12,
+                marginBottom: 16,
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}
+            >
+              <IcCheckCircle style={{ width: 16, height: 16, color: "#34d399", flexShrink: 0 }} />
+              <span>{successMsg}</span>
+            </div>
+          )}
 
           {error && (
             <div
