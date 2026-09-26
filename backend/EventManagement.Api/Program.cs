@@ -33,14 +33,34 @@ using (var scope = app.Services.CreateScope())
     await DbSeeder.SeedAsync(db);
 }
 
-if (app.Environment.IsDevelopment())
+// Enable Swagger in all environments (including Production) for easy testing
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "EventFlow API v1");
+    c.RoutePrefix = "swagger";
+});
 
 app.UseCors("AllowClients");
 app.UseAuthorization();
+
+// Root endpoint so visiting the base URL does not return 404
+app.MapGet("/", () => Results.Ok(new
+{
+    status = "Online",
+    service = "EventFlow Management API",
+    version = "1.0",
+    docs = "/swagger",
+    endpoints = new[]
+    {
+        "/api/events",
+        "/api/venues",
+        "/api/vendors",
+        "/api/registrations",
+        "/swagger"
+    }
+}));
+
 app.MapControllers();
 
 app.MapPost("/api/seed", async (AppDbContext db) =>
