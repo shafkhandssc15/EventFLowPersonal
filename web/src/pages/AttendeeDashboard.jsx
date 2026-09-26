@@ -20,13 +20,38 @@ export default function AttendeeDashboard() {
 
   useEffect(() => {
     try {
-      const rawSaved = JSON.parse(localStorage.getItem(`ef_tickets_${user?.id}`) || "[]");
-      let initialList = [];
+      const userKey = user?.id || user?.email;
+      if (!userKey) {
+        setTickets([]);
+        setSelectedTicket(null);
+        return;
+      }
+
+      const isDemoAttendee =
+        (user?.email && user.email.toLowerCase() === "attendee@demo.com") ||
+        user?.id === "00000000-0000-0000-0000-000000000001";
+
+      let rawSaved = JSON.parse(localStorage.getItem(`ef_tickets_${userKey}`) || "[]");
+
+      // For non-demo attendees: strictly purge any demo/sample passes (BK-LK-908214, BK-LK-774102)
+      // that may have been previously dumped into this user's wallet by legacy code
+      if (!isDemoAttendee && rawSaved.length > 0) {
+        const cleaned = rawSaved.filter(t =>
+          t.bookingRef !== "BK-LK-908214" &&
+          t.bookingRef !== "BK-LK-774102" &&
+          !t.id?.startsWith("tkt-lk-10p-") &&
+          t.id !== "tkt-lk-single-02"
+        );
+        if (cleaned.length !== rawSaved.length) {
+          localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(cleaned));
+          rawSaved = cleaned;
+        }
+      }
 
       if (rawSaved.length > 0) {
         // Sanitize existing tickets to ensure 100% uniqueness and valid metadata
         const seenQr = new Set();
-        initialList = rawSaved.map((tkt, idx) => {
+        const initialList = rawSaved.map((tkt, idx) => {
           const pIndex = tkt.passIndex || (idx + 1);
           const shortEvent = (tkt.eventId || tkt.eventTitle || "EV").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase();
           const fallbackNic = idx === 0 ? (user?.nic || "199878901234") : `199${(45678900 + idx * 1234).toString().slice(0, 9)}`;
@@ -46,19 +71,41 @@ export default function AttendeeDashboard() {
           return {
             ...tkt,
             id: tkt.id || `tkt-${tkt.eventId}-${idx + 1}-${Date.now()}`,
-            holderName: (tkt.holderName && tkt.holderName.trim()) ? tkt.holderName : (idx === 0 ? (user?.name || "Sam Taylor") : `Guest Delegate #${idx + 1}`),
+            holderName: (tkt.holderName && tkt.holderName.trim()) ? tkt.holderName : (idx === 0 ? (user?.name || "Attendee") : `Guest Delegate #${idx + 1}`),
             holderNic: cleanNic,
             qrCode: qCode,
             passIndex: pIndex
           };
         });
 
-        localStorage.setItem(`ef_tickets_${user?.id}`, JSON.stringify(initialList));
+        localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(initialList));
         setTickets(initialList);
         setSelectedTicket(initialList[0]);
         setExpandedBookingId(initialList[0].bookingRef || initialList[0].eventId);
-      } else {
-        // Initial sample tickets including a 10-pass bundle for an event
+        return;
+      }
+
+      // Check if this attendee has personal bookings in ef_master_bookings
+      const masterBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
+      const userEmail = user?.email?.toLowerCase();
+      const myBookings = masterBookings.filter(b =>
+        (user?.id && b.attendeeId === user.id) ||
+        (userEmail && b.attendeeEmail && b.attendeeEmail.toLowerCase() === userEmail)
+      );
+
+      if (myBookings.length > 0) {
+        const recoveredPasses = myBookings.flatMap(b => b.passes || []);
+        if (recoveredPasses.length > 0) {
+          localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(recoveredPasses));
+          setTickets(recoveredPasses);
+          setSelectedTicket(recoveredPasses[0]);
+          setExpandedBookingId(recoveredPasses[0].bookingRef || recoveredPasses[0].eventId);
+          return;
+        }
+      }
+
+      // ONLY for the pre-configured Demo Attendee ("attendee@demo.com"): seed initial demo tickets
+      if (isDemoAttendee) {
         const sample10Passes = Array.from({ length: 10 }, (_, i) => ({
           id: `tkt-lk-10p-${i + 1}`,
           eventId: "ev-lk-001",
@@ -98,35 +145,64 @@ export default function AttendeeDashboard() {
         };
 
         const initial = [...sample10Passes, singlePass];
+        localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(initial));
         setTickets(initial);
         setSelectedTicket(initial[0]);
         setExpandedBookingId("BK-LK-908214");
+      } else {
+        // Any new attendee has an EMPTY wallet until they book passes
+        setTickets([]);
+        setSelectedTicket(null);
+        setExpandedBookingId(null);
       }
-    } catch {}
+    } catch {
+      setTickets([]);
+      setSelectedTicket(null);
+    }
   }, [user]);
 
   // Refresh tickets from localStorage
   function refreshTickets() {
     try {
-      const rawSaved = JSON.parse(localStorage.getItem(`ef_tickets_${user?.id}`) || "[]");
-      if (rawSaved.length > 0) {
-        setTickets(rawSaved);
-        if (selectedTicket) {
-          const updatedSelected = rawSaved.find(t => t.id === selectedTicket.id) || rawSaved[0];
-          setSelectedTicket(updatedSelected);
-        }
+      const userKey = user?.id || user?.email;
+      if (!userKey) return;
+      const rawSaved = JSON.parse(localStorage.getItem(`ef_tickets_${userKey}`) || "[]");
+      setTickets(rawSaved);
+      if (rawSaved.length === 0) {
+        setSelectedTicket(null);
+        setExpandedBookingId(null);
+      } else if (selectedTicket) {
+        const updatedSelected = rawSaved.find(t => t.id === selectedTicket.id) || rawSaved[0];
+        setSelectedTicket(updatedSelected);
+      } else {
+        setSelectedTicket(rawSaved[0]);
       }
     } catch {}
   }
+
+  // Real-time listener for cross-tab or organizer approvals
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      const userKey = user?.id || user?.email;
+      if (!e.key || e.key === `ef_tickets_${userKey}` || e.key === "ef_master_bookings") {
+        refreshTickets();
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [user]);
 
   // Cancel a pending booking (removes from the organizer's queue too)
   function cancelBooking(bookingRef) {
     if (!window.confirm("Cancel this booking? This will withdraw your payment slip from the organizer's review queue.")) return;
     try {
+      const userKey = user?.id || user?.email;
       // Remove from attendee tickets
       const updated = tickets.filter(t => t.bookingRef !== bookingRef);
       setTickets(updated);
-      localStorage.setItem(`ef_tickets_${user?.id}`, JSON.stringify(updated));
+      if (userKey) {
+        localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(updated));
+      }
       if (selectedTicket?.bookingRef === bookingRef) setSelectedTicket(updated[0] || null);
       if (expandedBookingId === bookingRef) setExpandedBookingId(null);
 

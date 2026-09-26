@@ -222,8 +222,9 @@ export default function EventDetail() {
 
       // 1. Save to user attendee wallet in localStorage
       try {
-        const existing = JSON.parse(localStorage.getItem(`ef_tickets_${user?.id}`) || "[]");
-        localStorage.setItem(`ef_tickets_${user?.id}`, JSON.stringify([...newPasses, ...existing]));
+        const userWalletKey = `ef_tickets_${user?.id || user?.email || "guest"}`;
+        const existing = JSON.parse(localStorage.getItem(userWalletKey) || "[]");
+        localStorage.setItem(userWalletKey, JSON.stringify([...newPasses, ...existing]));
       } catch (err) {
         console.warn("Wallet storage error:", err);
       }
@@ -236,7 +237,7 @@ export default function EventDetail() {
           eventId: event.id,
           eventTitle: event.title,
           organizerId: event.organizerId || "00000000-0000-0000-0000-0000000000aa",
-          attendeeId: user?.id || "00000000-0000-0000-0000-000000000001",
+          attendeeId: user?.id || user?.email || "00000000-0000-0000-0000-000000000001",
           attendeeName: attendeeDetails[0]?.name || user?.name || "Attendee",
           attendeeEmail: attendeeDetails[0]?.email || user?.email || "attendee@demo.com",
           attendeeNic: attendeeDetails[0]?.idNumber || user?.nic || "199878901234",
@@ -253,13 +254,14 @@ export default function EventDetail() {
           createdAt: new Date().toISOString()
         };
         localStorage.setItem("ef_master_bookings", JSON.stringify([masterRecord, ...masterBookings]));
+        window.dispatchEvent(new Event("storage"));
 
         // Initialize chat message
         const initialChat = [
           {
             id: `msg-init-${bookingRef}`,
             bookingRef: bookingRef,
-            senderId: user?.id || "00000000-0000-0000-0000-000000000001",
+            senderId: user?.id || user?.email || "00000000-0000-0000-0000-000000000001",
             senderName: attendeeDetails[0]?.name || user?.name || "Attendee",
             senderRole: "Attendee",
             text: isFree
