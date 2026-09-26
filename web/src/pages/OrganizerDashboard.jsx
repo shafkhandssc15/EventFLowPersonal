@@ -8,7 +8,7 @@ import {
   IcAlert, IcBuilding, IcShield, IcCompass, IcMail, IcImage,
   IcCheckCircle, IcClock, IcX
 } from "../components/Icons.jsx";
-import { SAMPLE_VENUES, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, SAMPLE_VENUES, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 import ImageUploader from "../components/ImageUploader.jsx";
 import BookingChatDrawer from "../components/BookingChatDrawer.jsx";
 
@@ -100,7 +100,7 @@ export default function OrganizerDashboard() {
     // 3. Events are live via useRealtime() — no fetch needed here
     setLoading(false);
 
-    // 4. Load Master Bookings for Slip Verification (Only real bookings from attendees)
+    // 4. Load Master Bookings for Slip Verification (from Supabase ApprovalRequests & localStorage)
     try {
       const savedBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
       // Filter out any legacy sample bookings
@@ -113,6 +113,41 @@ export default function OrganizerDashboard() {
         localStorage.setItem("ef_master_bookings", JSON.stringify(realBookings));
       }
       setMasterBookings(realBookings);
+
+      // Also pull directly from Supabase ApprovalRequests
+      supabase
+        .from("ApprovalRequests")
+        .select("*")
+        .order("CreatedAt", { ascending: false })
+        .then(({ data: dbReqs }) => {
+          if (dbReqs && dbReqs.length > 0) {
+            const dbList = dbReqs.map(r => {
+              try {
+                const parsed = JSON.parse(r.Reason);
+                const s = r.Status === "Approved" ? "Confirmed" : (r.Status === "Rejected" ? "Rejected" : "PendingApproval");
+                return {
+                  ...parsed,
+                  dbId: r.Id,
+                  status: s,
+                  rejectionReason: r.Status === "Rejected" ? (parsed.rejectionReason || "Slip rejected by organizer") : null
+                };
+              } catch {
+                return null;
+              }
+            }).filter(Boolean);
+
+            setMasterBookings(prev => {
+              const combined = [...dbList];
+              prev.forEach(p => {
+                if (!combined.some(c => c.bookingRef === p.bookingRef)) {
+                  combined.push(p);
+                }
+              });
+              return combined;
+            });
+          }
+        })
+        .catch(err => console.warn("Supabase load approval requests warning:", err));
     } catch {
       setMasterBookings([]);
     }
@@ -162,6 +197,25 @@ export default function OrganizerDashboard() {
       localStorage.setItem(chatKey, JSON.stringify([...chatMsgs, notice]));
       window.dispatchEvent(new Event("storage"));
 
+      // 4. Direct update to Supabase ApprovalRequests and Registrations
+      try {
+        supabase
+          .from("ApprovalRequests")
+          .update({ Status: "Approved", ResolvedAt: new Date().toISOString() })
+          .ilike("Reason", `%${booking.bookingRef}%`)
+          .then(() => {});
+
+        if (booking.eventId) {
+          supabase
+            .from("Registrations")
+            .update({ Status: "Confirmed", UpdatedAt: new Date().toISOString() })
+            .eq("EventId", booking.eventId)
+            .then(() => {});
+        }
+      } catch (sbErr) {
+        console.warn("Supabase approval sync warning:", sbErr);
+      }
+
       setSuccess(`✅ Payment for ${booking.attendeeName} (${booking.bookingRef}) APPROVED — QR passes activated!`);
     } catch (err) {
       setError("Failed to approve: " + err.message);
@@ -209,6 +263,25 @@ export default function OrganizerDashboard() {
       };
       localStorage.setItem(chatKey, JSON.stringify([...chatMsgs, notice]));
       window.dispatchEvent(new Event("storage"));
+
+      // 4. Direct update to Supabase ApprovalRequests and Registrations
+      try {
+        supabase
+          .from("ApprovalRequests")
+          .update({ Status: "Rejected", ResolvedAt: new Date().toISOString() })
+          .ilike("Reason", `%${rejectTarget.bookingRef}%`)
+          .then(() => {});
+
+        if (rejectTarget.eventId) {
+          supabase
+            .from("Registrations")
+            .update({ Status: "Rejected", UpdatedAt: new Date().toISOString() })
+            .eq("EventId", rejectTarget.eventId)
+            .then(() => {});
+        }
+      } catch (sbErr) {
+        console.warn("Supabase rejection sync warning:", sbErr);
+      }
 
       setSuccess(`❌ Payment for ${rejectTarget.attendeeName} rejected. Reason sent to attendee.`);
       setRejectTarget(null);
@@ -899,7 +972,9 @@ export default function OrganizerDashboard() {
                 ? masterBookings
                 : masterBookings.filter(b => {
                     const matchedEvent = events.find(ev => ev.id === b.eventId || ev.title === b.eventTitle);
-                    return matchedEvent ? isEventCreator(matchedEvent, user) : true;
+                    return matchedEvent
+                      ? isEventCreator(matchedEvent, user)
+                      : (b.organizerId === user?.id || (b.organizerEmail && user?.email && b.organizerEmail.toLowerCase() === user.email.toLowerCase()));
                   });
 
               const filtered = relevantBookings.filter(b => slipFilter === "All" || b.status === slipFilter);

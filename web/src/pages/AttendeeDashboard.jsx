@@ -6,12 +6,14 @@ import {
   IcUser, IcShield, IcChevronRight, IcClock, IcX, IcCheck,
   IcMail, IcImage, IcAlert, IcSend
 } from "../components/Icons.jsx";
-import { SAMPLE_EVENTS, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, SAMPLE_EVENTS, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { useRealtime } from "../context/RealtimeContext.jsx";
 import QRCodeVisual from "../components/QRCodeVisual.jsx";
 import BookingChatDrawer from "../components/BookingChatDrawer.jsx";
 
 export default function AttendeeDashboard() {
   const { user } = useAuth();
+  const { events } = useRealtime();
   const [tickets, setTickets] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [expandedBookingId, setExpandedBookingId] = useState(null);
@@ -19,94 +21,124 @@ export default function AttendeeDashboard() {
   const [selectedChatBooking, setSelectedChatBooking] = useState(null);
 
   useEffect(() => {
-    try {
-      const userKey = user?.id || user?.email;
-      if (!userKey) {
-        setTickets([]);
-        setSelectedTicket(null);
-        return;
-      }
+    const userKey = user?.id || user?.email;
+    if (!userKey) {
+      setTickets([]);
+      setSelectedTicket(null);
+      return;
+    }
 
-      let rawSaved = JSON.parse(localStorage.getItem(`ef_tickets_${userKey}`) || "[]");
+    // Function to load and sync passes from Supabase ApprovalRequests & localStorage
+    async function loadAttendeePasses() {
+      try {
+        let rawSaved = JSON.parse(localStorage.getItem(`ef_tickets_${userKey}`) || "[]");
 
-      // Strictly purge any legacy demo/sample passes (BK-LK-908214, BK-LK-774102)
-      if (rawSaved.length > 0) {
-        const cleaned = rawSaved.filter(t =>
-          t.bookingRef !== "BK-LK-908214" &&
-          t.bookingRef !== "BK-LK-774102" &&
-          !t.id?.startsWith("tkt-lk-10p-") &&
-          t.id !== "tkt-lk-single-02"
-        );
-        if (cleaned.length !== rawSaved.length) {
-          localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(cleaned));
-          rawSaved = cleaned;
-        }
-      }
-
-      if (rawSaved.length > 0) {
-        // Sanitize existing tickets to ensure 100% uniqueness and valid metadata
-        const seenQr = new Set();
-        const initialList = rawSaved.map((tkt, idx) => {
-          const pIndex = tkt.passIndex || (idx + 1);
-          const shortEvent = (tkt.eventId || tkt.eventTitle || "EV").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase();
-          const fallbackNic = idx === 0 ? (user?.nic || "199878901234") : `199${(45678900 + idx * 1234).toString().slice(0, 9)}`;
-          const cleanNic = (tkt.holderNic && tkt.holderNic.trim() && !tkt.holderNic.includes("undefined"))
-            ? tkt.holderNic
-            : fallbackNic;
-
-          const rawClean = cleanNic.replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase() || "LK01";
-          const uniqueSalt = (idx * 137 + 101).toString(16).toUpperCase();
-
-          let qCode = tkt.qrCode;
-          if (!qCode || qCode.includes("000000") || seenQr.has(qCode)) {
-            qCode = `EVENTFLOW-LK-${shortEvent}-${rawClean}-${uniqueSalt}-${String(pIndex).padStart(2, "0")}`;
+        // Strictly purge any legacy demo/sample passes (BK-LK-908214, BK-LK-774102)
+        if (rawSaved.length > 0) {
+          const cleaned = rawSaved.filter(t =>
+            t.bookingRef !== "BK-LK-908214" &&
+            t.bookingRef !== "BK-LK-774102" &&
+            !t.id?.startsWith("tkt-lk-10p-") &&
+            t.id !== "tkt-lk-single-02"
+          );
+          if (cleaned.length !== rawSaved.length) {
+            localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(cleaned));
+            rawSaved = cleaned;
           }
-          seenQr.add(qCode);
+        }
 
-          return {
-            ...tkt,
-            id: tkt.id || `tkt-${tkt.eventId}-${idx + 1}-${Date.now()}`,
-            holderName: (tkt.holderName && tkt.holderName.trim()) ? tkt.holderName : (idx === 0 ? (user?.name || "Attendee") : `Guest Delegate #${idx + 1}`),
-            holderNic: cleanNic,
-            qrCode: qCode,
-            passIndex: pIndex
-          };
-        });
+        // Pull real-time requests from Supabase ApprovalRequests table
+        const { data: dbRequests } = await supabase
+          .from("ApprovalRequests")
+          .select("*")
+          .order("CreatedAt", { ascending: false });
 
-        localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(initialList));
-        setTickets(initialList);
-        setSelectedTicket(initialList[0]);
-        setExpandedBookingId(initialList[0].bookingRef || initialList[0].eventId);
-        return;
-      }
+        if (dbRequests && dbRequests.length > 0) {
+          const mySupabasePasses = [];
+          dbRequests.forEach(req => {
+            try {
+              const parsed = JSON.parse(req.Reason);
+              const isMine = (user?.id && parsed.attendeeId === user.id) ||
+                (user?.email && parsed.attendeeEmail && parsed.attendeeEmail.toLowerCase() === user.email.toLowerCase());
 
-      // Check if this attendee has personal bookings in ef_master_bookings
-      const masterBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
-      const userEmail = user?.email?.toLowerCase();
-      const myBookings = masterBookings.filter(b =>
-        (user?.id && b.attendeeId === user.id) ||
-        (userEmail && b.attendeeEmail && b.attendeeEmail.toLowerCase() === userEmail)
-      );
+              if (isMine) {
+                const currentStatus = req.Status === "Approved"
+                  ? "Confirmed"
+                  : (req.Status === "Rejected" ? "Rejected" : "PendingApproval");
 
-      if (myBookings.length > 0) {
-        const recoveredPasses = myBookings.flatMap(b => b.passes || []);
-        if (recoveredPasses.length > 0) {
-          localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(recoveredPasses));
-          setTickets(recoveredPasses);
-          setSelectedTicket(recoveredPasses[0]);
-          setExpandedBookingId(recoveredPasses[0].bookingRef || recoveredPasses[0].eventId);
+                const updatedPasses = (parsed.passes || []).map(p => ({
+                  ...p,
+                  status: currentStatus,
+                  paymentStatus: currentStatus,
+                  rejectionReason: req.Status === "Rejected" ? (parsed.rejectionReason || "Payment slip rejected by organizer") : null
+                }));
+
+                mySupabasePasses.push(...updatedPasses);
+              }
+            } catch {}
+          });
+
+          if (mySupabasePasses.length > 0) {
+            localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(mySupabasePasses));
+            setTickets(mySupabasePasses);
+            setSelectedTicket(prev => {
+              if (!prev) return mySupabasePasses[0];
+              return mySupabasePasses.find(p => p.id === prev.id) || mySupabasePasses[0];
+            });
+            setExpandedBookingId(prev => prev || mySupabasePasses[0]?.bookingRef);
+            return;
+          }
+        }
+
+        if (rawSaved.length > 0) {
+          setTickets(rawSaved);
+          setSelectedTicket(rawSaved[0]);
+          setExpandedBookingId(rawSaved[0].bookingRef || rawSaved[0].eventId);
           return;
         }
-      }
 
-      // No passes found — clean empty wallet until attendee books passes
-      setTickets([]);
-      setSelectedTicket(null);
-      setExpandedBookingId(null);
-    } catch {
-      setTickets([]);
-      setSelectedTicket(null);
+        // Check ef_master_bookings fallback
+        const masterBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
+        const userEmail = user?.email?.toLowerCase();
+        const myBookings = masterBookings.filter(b =>
+          (user?.id && b.attendeeId === user.id) ||
+          (userEmail && b.attendeeEmail && b.attendeeEmail.toLowerCase() === userEmail)
+        );
+
+        if (myBookings.length > 0) {
+          const recoveredPasses = myBookings.flatMap(b => b.passes || []);
+          if (recoveredPasses.length > 0) {
+            localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(recoveredPasses));
+            setTickets(recoveredPasses);
+            setSelectedTicket(recoveredPasses[0]);
+            setExpandedBookingId(recoveredPasses[0].bookingRef || recoveredPasses[0].eventId);
+            return;
+          }
+        }
+
+        // Truly empty wallet
+        setTickets([]);
+        setSelectedTicket(null);
+        setExpandedBookingId(null);
+      } catch {
+        setTickets([]);
+        setSelectedTicket(null);
+      }
     }
+
+    loadAttendeePasses();
+
+    // Subscribe to real-time changes on ApprovalRequests so organizer approval immediately reflects
+    const channel = supabase
+      .channel("attendee-approvals-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ApprovalRequests" }, () => {
+        loadAttendeePasses();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   // Refresh tickets from localStorage
@@ -244,11 +276,83 @@ export default function AttendeeDashboard() {
         )}
 
         {tickets.length === 0 ? (
-          <div className="empty">
-            <IcTicket className="empty-icon" />
-            <div className="empty-title">No passes found</div>
-            <div className="empty-desc">You haven't registered for any Sri Lankan events yet. Explore upcoming experiences!</div>
-            <Link to="/" className="btn btn-primary btn-sm" style={{ marginTop: 12 }}>Browse Events</Link>
+          <div>
+            <div className="empty" style={{ marginBottom: 28 }}>
+              <IcTicket className="empty-icon" />
+              <div className="empty-title">Your Pass Wallet is Empty</div>
+              <div className="empty-desc">
+                Welcome to EventFlow! You haven't booked any event passes yet. Browse available events below to select an experience and upload your payment slip:
+              </div>
+            </div>
+
+            {/* Display All Events Directly */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, color: "#ffffff", margin: 0 }}>
+                    Upcoming Events in Sri Lanka ({events.length})
+                  </h2>
+                  <p style={{ fontSize: 12, color: "var(--c-text-2)", margin: "4px 0 0" }}>
+                    Select any event below to book passes and submit your payment slip directly to the organizer.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+                {events.map(ev => (
+                  <div
+                    key={ev.id}
+                    className="card"
+                    style={{
+                      padding: 0,
+                      overflow: "hidden",
+                      background: "var(--c-bg-1)",
+                      border: "1px solid var(--c-border)",
+                      display: "flex",
+                      flexDirection: "column",
+                      transition: "transform 0.15s, border-color 0.15s"
+                    }}
+                  >
+                    <div style={{ position: "relative", height: 140 }}>
+                      <img
+                        src={ev.image || FALLBACK_IMAGE}
+                        alt={ev.title}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                      />
+                      <span className="badge badge-blue" style={{ position: "absolute", top: 10, right: 10, fontSize: 10 }}>
+                        {ev.category || "Event"}
+                      </span>
+                    </div>
+
+                    <div style={{ padding: 14, flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: "#ffffff", marginBottom: 6, lineHeight: 1.3 }}>
+                          {ev.title}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--c-text-2)", marginBottom: 4 }}>
+                          <IcMapPin style={{ width: 12, height: 12, color: "#38bdf8", flexShrink: 0 }} />
+                          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.location || "Colombo, Sri Lanka"}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--c-text-3)", marginBottom: 12 }}>
+                          <IcCalendar style={{ width: 12, height: 12, flexShrink: 0 }} />
+                          <span>{ev.startDate ? new Date(ev.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Upcoming"}</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid var(--c-border)" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#34d399" }}>
+                          Capacity: {ev.capacity || "500+"}
+                        </div>
+                        <Link to={`/events/${ev.id}`} className="btn btn-primary btn-sm" style={{ fontSize: 11 }}>
+                          Book Pass &amp; Upload Slip →
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 24, alignItems: "start" }}>
@@ -563,10 +667,27 @@ export default function AttendeeDashboard() {
                                       #{pIdx + 1}
                                     </div>
 
-                                    {/* Unique Micro-QR thumbnail */}
-                                    <div style={{ flexShrink: 0, background: "#ffffff", borderRadius: 6, padding: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                      <QRCodeVisual value={pass.qrCode} size={32} showLabel={false} />
-                                    </div>
+                                    {/* Unique Micro-QR thumbnail (Only unlocked when Confirmed by Organizer) */}
+                                    {pass.paymentStatus === "Confirmed" ? (
+                                      <div style={{ flexShrink: 0, background: "#ffffff", borderRadius: 6, padding: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <QRCodeVisual value={pass.qrCode} size={32} showLabel={false} />
+                                      </div>
+                                    ) : (
+                                      <div style={{
+                                        flexShrink: 0,
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: 6,
+                                        background: pass.paymentStatus === "Rejected" ? "rgba(239, 68, 68, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                                        border: pass.paymentStatus === "Rejected" ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid rgba(245, 158, 11, 0.3)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 14
+                                      }}>
+                                        {pass.paymentStatus === "Rejected" ? "⚠️" : "🔒"}
+                                      </div>
+                                    )}
 
                                     <div style={{ minWidth: 0, flex: 1 }}>
                                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -592,8 +713,8 @@ export default function AttendeeDashboard() {
                                   </div>
 
                                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                    <span className="badge badge-green" style={{ fontSize: 10 }}>
-                                      Ready for Entry
+                                    <span className={`badge ${pass.paymentStatus === "Confirmed" ? "badge-green" : (pass.paymentStatus === "Rejected" ? "badge-red" : "badge-amber")}`} style={{ fontSize: 10 }}>
+                                      {pass.paymentStatus === "Confirmed" ? "Ready for Entry" : (pass.paymentStatus === "Rejected" ? "Slip Rejected" : "Pending Review")}
                                     </span>
                                     <button
                                       type="button"
@@ -604,7 +725,7 @@ export default function AttendeeDashboard() {
                                       className={`btn btn-sm ${isPassSelected ? "btn-primary" : "btn-secondary"}`}
                                       style={{ fontSize: 11, minWidth: 80 }}
                                     >
-                                      {isPassSelected ? "Viewing QR" : "Show QR"}
+                                      {isPassSelected ? "Viewing Pass" : "View Pass"}
                                     </button>
                                   </div>
                                 </div>
@@ -642,7 +763,9 @@ export default function AttendeeDashboard() {
                       Unique Entrance Pass
                     </span>
                   </div>
-                  <span className="badge badge-green">Valid &amp; Scannable</span>
+                  <span className={`badge ${selectedTicket.paymentStatus === "Confirmed" ? "badge-green" : (selectedTicket.paymentStatus === "Rejected" ? "badge-red" : "badge-amber")}`}>
+                    {selectedTicket.paymentStatus === "Confirmed" ? "Valid & Scannable" : (selectedTicket.paymentStatus === "Rejected" ? "Slip Rejected" : "QR Locked · Review")}
+                  </span>
                 </div>
 
                 <div style={{ position: "relative", height: 120, borderRadius: "var(--radius-sm)", overflow: "hidden", marginBottom: 14 }}>
@@ -693,81 +816,107 @@ export default function AttendeeDashboard() {
                   </div>
                 </div>
 
-                {/* High-Definition Unique Deterministic QR Code Badge */}
-                <div style={{
-                  background: "#ffffff",
-                  padding: "16px",
-                  borderRadius: 14,
-                  textAlign: "center",
-                  marginBottom: 12,
-                  position: "relative"
-                }}>
-                  <QRCodeVisual key={selectedTicket.qrCode || selectedTicket.id} value={selectedTicket.qrCode || `EVENTFLOW-LK-${selectedTicket.id}`} size={160} showLabel={true} />
-                  
-                  {selectedTicket.paymentStatus === "PendingApproval" && (
+                {/* High-Definition Unique Deterministic QR Code Badge (Only when Confirmed) */}
+                {selectedTicket.paymentStatus === "Confirmed" ? (
+                  <div style={{
+                    background: "#ffffff",
+                    padding: "16px",
+                    borderRadius: 14,
+                    textAlign: "center",
+                    marginBottom: 12,
+                    position: "relative"
+                  }}>
+                    <QRCodeVisual key={selectedTicket.qrCode || selectedTicket.id} value={selectedTicket.qrCode || `EVENTFLOW-LK-${selectedTicket.id}`} size={160} showLabel={true} />
+                  </div>
+                ) : (
+                  <div style={{
+                    background: "rgba(15, 23, 42, 0.95)",
+                    border: selectedTicket.paymentStatus === "Rejected" ? "1.5px dashed rgba(239, 68, 68, 0.5)" : "1.5px dashed rgba(245, 158, 11, 0.5)",
+                    borderRadius: 14,
+                    padding: "28px 18px",
+                    textAlign: "center",
+                    marginBottom: 12
+                  }}>
                     <div style={{
-                      position: "absolute",
-                      inset: 8,
-                      background: "rgba(15, 23, 42, 0.88)",
-                      borderRadius: 10,
+                      width: 48,
+                      height: 48,
+                      borderRadius: "50%",
+                      background: selectedTicket.paymentStatus === "Rejected" ? "rgba(239, 68, 68, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                      color: selectedTicket.paymentStatus === "Rejected" ? "#ef4444" : "#f59e0b",
                       display: "flex",
-                      flexDirection: "column",
                       alignItems: "center",
                       justifyContent: "center",
-                      padding: 12,
-                      color: "#fbbf24",
-                      textAlign: "center"
+                      margin: "0 auto 12px",
+                      fontSize: 22
                     }}>
-                      <IcClock style={{ width: 26, height: 26, marginBottom: 6 }} />
-                      <div style={{ fontSize: 12, fontWeight: 800 }}>Slip Under Review</div>
-                      <div style={{ fontSize: 10, color: "#e2e8f0", marginTop: 4 }}>
-                        QR badge activates once organizer verifies bank slip.
-                      </div>
+                      {selectedTicket.paymentStatus === "Rejected" ? "⚠️" : "🔒"}
                     </div>
-                  )}
-
-                  {selectedTicket.paymentStatus === "Rejected" && (
-                    <div style={{
-                      position: "absolute",
-                      inset: 8,
-                      background: "rgba(15, 23, 42, 0.92)",
-                      borderRadius: 10,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: 12,
-                      color: "#f87171",
-                      textAlign: "center"
-                    }}>
-                      <IcAlert style={{ width: 26, height: 26, marginBottom: 6 }} />
-                      <div style={{ fontSize: 12, fontWeight: 800 }}>Action Required</div>
-                      <div style={{ fontSize: 10, color: "#e2e8f0", marginTop: 4 }}>
-                        Slip was rejected. Please open chat to re-upload.
-                      </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#ffffff", marginBottom: 4 }}>
+                      {selectedTicket.paymentStatus === "Rejected" ? "Payment Slip Rejected" : "Entrance QR Pass Locked"}
                     </div>
-                  )}
-                </div>
+                    <div style={{ fontSize: 11, color: "var(--c-text-2)", lineHeight: 1.5, maxWidth: 280, margin: "0 auto 12px" }}>
+                      {selectedTicket.paymentStatus === "Rejected"
+                        ? `Organizer Note: "${selectedTicket.rejectionReason || "Please upload an authentic transfer slip."}". Open chat below to re-upload.`
+                        : "Your bank transfer slip is currently pending review by the event organizer. Once approved, your official scannable entrance QR badge will unlock."}
+                    </div>
+                    <span className={`badge ${selectedTicket.paymentStatus === "Rejected" ? "badge-red" : "badge-amber"}`} style={{ fontSize: 10 }}>
+                      {selectedTicket.paymentStatus === "Rejected" ? "Action Needed · Re-upload" : "Awaiting Organizer Approval"}
+                    </span>
+                  </div>
+                )}
 
                 <div style={{ fontSize: 11, color: "var(--c-text-3)", textAlign: "center", marginBottom: 12 }}>
-                  Official Entrance QR Code · Present with NIC ({selectedTicket.holderNic || user?.nic || "Verified"})
+                  {selectedTicket.paymentStatus === "Confirmed"
+                    ? `Official Entrance QR Code · Present with NIC (${selectedTicket.holderNic || user?.nic || "Verified"})`
+                    : "Entrance QR code remains locked until payment slip is verified and approved by the event organizer."}
                 </div>
 
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-full btn-sm"
-                    onClick={() => alert(`Downloading entrance pass PDF for ${selectedTicket.holderName} (Pass ID: ${selectedTicket.qrCode})`)}
-                  >
-                    Download Pass PDF
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-full btn-sm"
-                    onClick={() => alert(`Pass ${selectedTicket.qrCode} ready for Gate Scanner at ${selectedTicket.location}`)}
-                  >
-                    Scan Badge
-                  </button>
+                  {selectedTicket.paymentStatus === "Confirmed" ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-full btn-sm"
+                        onClick={() => alert(`Downloading entrance pass PDF for ${selectedTicket.holderName} (Pass ID: ${selectedTicket.qrCode})`)}
+                      >
+                        Download Pass PDF
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-full btn-sm"
+                        onClick={() => alert(`Pass ${selectedTicket.qrCode} ready for Gate Scanner at ${selectedTicket.location}`)}
+                      >
+                        Scan Badge
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-full btn-sm"
+                      onClick={() => {
+                        const bk = groupedBookings[selectedTicket.bookingRef || selectedTicket.eventId];
+                        if (bk) {
+                          setSelectedChatBooking({
+                            bookingRef: bk.bookingRef,
+                            eventId: bk.eventId,
+                            eventTitle: bk.eventTitle,
+                            attendeeId: user?.id,
+                            attendeeName: user?.name,
+                            totalAmount: bk.passes.reduce((sum, p) => sum + (Number(p.price) || 0), 0),
+                            passCount: bk.passes.length,
+                            paymentSlipUrl: bk.paymentSlipUrl,
+                            bankName: bk.bankName,
+                            bankRefNo: bk.bankRefNo,
+                            status: bk.paymentStatus,
+                            rejectionReason: bk.rejectionReason
+                          });
+                        }
+                      }}
+                      style={{ color: "#60a5fa" }}
+                    >
+                      <IcMail style={{ width: 13, height: 13 }} /> View Slip &amp; Chat Organizer
+                    </button>
+                  )}
                 </div>
               </div>
             )}

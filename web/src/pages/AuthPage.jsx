@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import {
   IcMail, IcLock, IcUser, IcTarget, IcBuilding, IcShield,
   IcCheck, IcX, IcClock, IcSparkles, IcCheckCircle, IcChevronRight,
-  IcMapPin, IcCalendar, IcTicket
+  IcMapPin, IcCalendar, IcTicket, IcEye, IcEyeOff
 } from "../components/Icons.jsx";
 import { supabase, saveSupabaseProfile } from "../api/supabase.js";
 
@@ -57,6 +57,7 @@ export default function AuthPage() {
   const [error, setError]               = useState("");
   const [busy, setBusy]                 = useState(false);
   const [pendingModal, setPendingModal] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // 3D Spatial Tilt Tracker
   const sceneRef = useRef(null);
@@ -300,6 +301,21 @@ export default function AuthPage() {
           updated_at: new Date().toISOString()
         });
       } catch {}
+
+      // Always persist in Supabase public.Users table
+      try {
+        await supabase.from("Users").upsert({
+          Id: newUser.id,
+          Name: newUser.name,
+          Email: cleanEmail,
+          PasswordHash: password,
+          Role: newUser.role,
+          CreatedAt: new Date().toISOString(),
+          UpdatedAt: new Date().toISOString()
+        });
+      } catch (uErr) {
+        console.warn("Supabase Users upsert warning:", uErr);
+      }
 
       if (requiresAdminApproval) {
         const approvalRequest = {
@@ -572,16 +588,39 @@ export default function AuthPage() {
 
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" style={{ fontSize: 11 }}>Password *</label>
-                <div className="input-wrap">
+                <div className="input-wrap" style={{ position: "relative" }}>
                   <IcLock className="input-icon" />
                   <input
                     className="form-input"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     value={password}
                     onChange={e => setPass(e.target.value)}
+                    style={{ paddingRight: 38 }}
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      color: showPassword ? "var(--c-blue)" : "var(--c-text-3)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 4,
+                      zIndex: 2
+                    }}
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <IcEyeOff style={{ width: 16, height: 16 }} /> : <IcEye style={{ width: 16, height: 16 }} />}
+                  </button>
                 </div>
               </div>
 
@@ -733,16 +772,39 @@ export default function AuthPage() {
 
                 <div className="form-group" style={{ gridColumn: "1/-1", marginBottom: 0 }}>
                   <label className="form-label" style={{ fontSize: 11 }}>Account Password *</label>
-                  <div className="input-wrap">
+                  <div className="input-wrap" style={{ position: "relative" }}>
                     <IcLock className="input-icon" />
                     <input
                       className="form-input"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="Min. 6 characters"
                       value={password}
                       onChange={e => setPass(e.target.value)}
+                      style={{ paddingRight: 38 }}
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      style={{
+                        position: "absolute",
+                        right: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: showPassword ? "var(--c-blue)" : "var(--c-text-3)",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 4,
+                        zIndex: 2
+                      }}
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <IcEyeOff style={{ width: 16, height: 16 }} /> : <IcEye style={{ width: 16, height: 16 }} />}
+                    </button>
                   </div>
                 </div>
               </div>

@@ -7,7 +7,7 @@ import {
   IcCalendar, IcMapPin, IcUsers, IcArrowLeft, IcClock, IcTicket,
   IcCheckCircle, IcCompass, IcPlus, IcX, IcUser, IcShield
 } from "../components/Icons.jsx";
-import { SAMPLE_EVENTS, SAMPLE_VENUES, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, SAMPLE_EVENTS, SAMPLE_VENUES, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 import VenueMap from "../components/VenueMap.jsx";
 import QRCodeVisual from "../components/QRCodeVisual.jsx";
 
@@ -255,6 +255,34 @@ export default function EventDetail() {
         };
         localStorage.setItem("ef_master_bookings", JSON.stringify([masterRecord, ...masterBookings]));
         window.dispatchEvent(new Event("storage"));
+
+        // Direct write to Supabase Registrations and ApprovalRequests
+        try {
+          const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+          const validEventId = isUUID(event.id) ? event.id : "33333333-0000-0000-0000-000000000001";
+          const validAttendeeId = (user?.id && isUUID(user.id)) ? user.id : "00000000-0000-0000-0000-000000000001";
+          const now = new Date().toISOString();
+
+          // 1. Insert into Registrations table
+          await supabase.from("Registrations").insert({
+            Id: crypto.randomUUID(),
+            EventId: validEventId,
+            AttendeeId: validAttendeeId,
+            Status: initialStatus,
+            CreatedAt: now,
+            UpdatedAt: now
+          });
+
+          // 2. Insert into ApprovalRequests table (stores the slip data, organizer linkage, etc.)
+          await supabase.from("ApprovalRequests").insert({
+            Id: crypto.randomUUID(),
+            Status: isFree ? "Approved" : "PendingOrganizerApproval",
+            Reason: JSON.stringify(masterRecord),
+            CreatedAt: now
+          });
+        } catch (sbErr) {
+          console.warn("[EventDetail] Supabase booking sync warning:", sbErr);
+        }
 
         // Initialize chat message
         const initialChat = [
