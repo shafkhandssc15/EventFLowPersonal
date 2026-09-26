@@ -282,8 +282,30 @@ export function RealtimeProvider({ children }) {
       if (res) savedEvent = { ...eventData, ...mapEvent(res) };
     } catch (err) {
       apiError = err.message;
-      // Not fatal — we still persist locally and the Realtime listener will
-      // pick up the change once the network recovers.
+    }
+
+    // Direct write to Supabase Events table
+    try {
+      const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const eventId = isUUID(savedEvent.id) ? savedEvent.id : crypto.randomUUID();
+      savedEvent.id = eventId;
+      const now = new Date().toISOString();
+      await supabase.from("Events").upsert({
+        Id: eventId,
+        OrganizerId: savedEvent.organizerId || "00000000-0000-0000-0000-0000000000aa",
+        Title: savedEvent.title,
+        Description: savedEvent.description || "",
+        Category: savedEvent.category || "Technology",
+        StartDate: savedEvent.startDate || now,
+        EndDate: savedEvent.endDate || now,
+        Location: savedEvent.location || "",
+        Capacity: Number(savedEvent.capacity) || 0,
+        Status: savedEvent.status || "Published",
+        CreatedAt: savedEvent.createdAt || now,
+        UpdatedAt: now
+      });
+    } catch (sbErr) {
+      console.warn("[RealtimeContext] Supabase Events upsert:", sbErr);
     }
 
     // Immediately reflect in state (optimistic update)
@@ -302,9 +324,10 @@ export function RealtimeProvider({ children }) {
     return { event: savedEvent, error: apiError };
   }, []);
 
-  /** Cancel/delete an event locally + API call. */
+  /** Cancel/delete an event locally + API call + Supabase. */
   const deleteEvent = useCallback(async (id) => {
     try { await api.cancelEvent(id); } catch {}
+    try { await supabase.from("Events").delete().eq("Id", id); } catch {}
     setEvents(prev => {
       const next = prev.filter(e => e.id !== id);
       localStorage.setItem("ef_events", JSON.stringify(next));

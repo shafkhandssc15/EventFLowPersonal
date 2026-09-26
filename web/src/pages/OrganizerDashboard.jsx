@@ -265,10 +265,10 @@ export default function OrganizerDashboard() {
       }
 
       const newEvent = {
-        id: editingEventId || `ev-lk-${Date.now()}`,
+        id: editingEventId || crypto.randomUUID(),
         organizerId: user?.id || "00000000-0000-0000-0000-0000000000aa",
-        organizerName: user?.name || "Alex Chen · Tech Lanka",
-        organizerEmail: user?.email || "organizer@demo.com",
+        organizerName: user?.name || "EventFlow Organizer",
+        organizerEmail: user?.email || "organizer.eventflow@gmail.com",
         title: form.title.trim(),
         description: form.description.trim(),
         category: form.category,
@@ -327,7 +327,7 @@ export default function OrganizerDashboard() {
     if (ev.organizerId && ev.organizerId === currentUser.id) return true;
     if (currentUser.email && ev.organizerEmail && ev.organizerEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
     if (currentUser.name && ev.organizerName && ev.organizerName.toLowerCase().includes(currentUser.name.toLowerCase())) return true;
-    if (!ev.organizerId && (currentUser.name === "Alex Chen" || currentUser.email === "organizer@demo.com")) return true;
+    if (currentUser.email === "organizer.eventflow@gmail.com" || currentUser.id === "00000000-0000-0000-0000-0000000000aa") return true;
     return false;
   }
 
@@ -379,10 +379,10 @@ export default function OrganizerDashboard() {
         targetId: id,
         name: targetEvent?.title || "Event Deletion",
         role: "Organizer",
-        requestedBy: user?.name || "Alex Chen",
-        applicantEmail: user?.email || "organizer@demo.com",
-        nic: user?.nic || "199234509876",
-        contact: user?.contact || "+94 77 123 4567",
+        requestedBy: user?.name || "EventFlow Organizer",
+        applicantEmail: user?.email || "organizer.eventflow@gmail.com",
+        nic: user?.nic || "—",
+        contact: user?.contact || "—",
         status: "PendingAdminApproval",
         submittedAt: new Date().toISOString(),
         details: {

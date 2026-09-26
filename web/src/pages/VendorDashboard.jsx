@@ -7,7 +7,7 @@ import {
   IcCompass, IcUsers, IcClock, IcMail, IcShield, IcX, IcEye
 } from "../components/Icons.jsx";
 import VenueMap from "../components/VenueMap.jsx";
-import { SAMPLE_VENUES, SAMPLE_VENDORS, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, SAMPLE_VENUES, SAMPLE_VENDORS, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 import ImageUploader from "../components/ImageUploader.jsx";
 
 const SERVICE_TYPES = ["Audio/Visual", "Catering", "Photography", "Security", "Decoration", "Transportation", "Other"];
@@ -224,7 +224,7 @@ export default function VendorDashboard() {
     if (v.vendorId && v.vendorId === currentUser.id) return true;
     if (currentUser.email && v.contactEmail && v.contactEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
     if (currentUser.name && v.contactName && v.contactName.toLowerCase().includes(currentUser.name.toLowerCase())) return true;
-    if (currentUser.name === "Jordan Lee" || currentUser.email === "vendor@demo.com") return true;
+    if (currentUser.email === "vendor.eventflow@gmail.com" || currentUser.id === "00000000-0000-0000-0000-0000000000bb") return true;
     return false;
   }
 
@@ -249,9 +249,13 @@ export default function VendorDashboard() {
         ? vf.amenities.split(",").map(s => s.trim()).filter(Boolean)
         : vf.amenities;
 
+      const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const venueId = editingVenueId || crypto.randomUUID();
+
       const newVenue = {
-        id: editingVenueId || `ven-lk-${Date.now()}`,
+        id: venueId,
         ownerId: user?.id || "00000000-0000-0000-0000-0000000000bb",
+        vendorId: user?.id || "00000000-0000-0000-0000-0000000000bb",
         name: vf.name.trim(),
         location: vf.location.trim(),
         city: vf.city,
@@ -261,14 +265,30 @@ export default function VendorDashboard() {
         lng: Number(vf.lng),
         halls: vf.halls || "Main Hall",
         amenities: amenitiesList,
-        contactName: vf.contactName || user?.name || "Manager",
+        contactName: vf.contactName || user?.name || "EventFlow Venue Partner",
         contactPhone: vf.contactPhone || user?.contact || "+94 11 234 5678",
-        contactEmail: vf.contactEmail || user?.email || "info@venue.lk",
+        contactEmail: vf.contactEmail || user?.email || "vendor.eventflow@gmail.com",
         image: vf.image || FALLBACK_IMAGE,
         description: vf.description || `${vf.name} in ${vf.city} is a verified event venue in Sri Lanka.`,
         isActive: true,
         isVerified: true
       };
+
+      // Write directly to Supabase Venues table
+      try {
+        await supabase.from("Venues").upsert({
+          Id: isUUID(newVenue.id) ? newVenue.id : crypto.randomUUID(),
+          OwnerId: newVenue.ownerId,
+          Name: newVenue.name,
+          Location: newVenue.location,
+          Capacity: Number(newVenue.capacity) || 0,
+          PricePerHour: Number(newVenue.pricePerHour) || 0,
+          IsActive: true,
+          CreatedAt: new Date().toISOString()
+        });
+      } catch (sbErr) {
+        console.warn("[VendorDashboard] Supabase Venues upsert:", sbErr);
+      }
 
       if (editingVenueId) {
         const targetVenue = venues.find(v => v.id === editingVenueId);
