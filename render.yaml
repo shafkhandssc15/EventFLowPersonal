@@ -1,0 +1,42 @@
+# Render Blueprint — deploys both the ASP.NET Core API and the Python
+# Agentic AI service as two free-tier web services. Connect this repo on
+# Render (New > Blueprint) and it will read this file automatically.
+#
+# Env vars marked `sync: false` are secrets/deploy-specific values Render
+# will prompt for in the dashboard instead of storing in this file — see
+# docs/DEPLOYMENT.md for exactly what to enter for each one.
+
+services:
+  - type: web
+    name: eventflow-api
+    runtime: docker
+    dockerfilePath: ./backend/EventManagement.Api/Dockerfile
+    dockerContext: ./backend/EventManagement.Api
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__Default
+        sync: false # Supabase connection string (use the pooler host, not db.*.supabase.co)
+      - key: Jwt__Issuer
+        value: EventManagementApi
+      - key: Jwt__Audience
+        value: EventManagementClients
+      - key: Jwt__Key
+        sync: false # a long random secret — do NOT reuse the local dev one
+      - key: Jwt__ExpiryMinutes
+        value: "120"
+      - key: AgentServiceUrl
+        sync: false # fill in with the eventflow-agents service's URL once it's deployed (see DEPLOYMENT.md)
+
+  - type: web
+    name: eventflow-agents
+    runtime: docker
+    dockerfilePath: ./agents/Dockerfile
+    dockerContext: ./agents
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: API_BASE_URL
+        sync: false # fill in with the eventflow-api service's URL once it's deployed (see DEPLOYMENT.md)
