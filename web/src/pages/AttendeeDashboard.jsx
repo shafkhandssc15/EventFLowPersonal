@@ -667,27 +667,17 @@ export default function AttendeeDashboard() {
                                       #{pIdx + 1}
                                     </div>
 
-                                    {/* Unique Micro-QR thumbnail (Only unlocked when Confirmed by Organizer) */}
-                                    {pass.paymentStatus === "Confirmed" ? (
-                                      <div style={{ flexShrink: 0, background: "#ffffff", borderRadius: 6, padding: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                        <QRCodeVisual value={pass.qrCode} size={32} showLabel={false} />
-                                      </div>
-                                    ) : (
-                                      <div style={{
-                                        flexShrink: 0,
-                                        width: 32,
-                                        height: 32,
-                                        borderRadius: 6,
-                                        background: pass.paymentStatus === "Rejected" ? "rgba(239, 68, 68, 0.15)" : "rgba(245, 158, 11, 0.15)",
-                                        border: pass.paymentStatus === "Rejected" ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid rgba(245, 158, 11, 0.3)",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontSize: 14
-                                      }}>
-                                        {pass.paymentStatus === "Rejected" ? "⚠️" : "🔒"}
-                                      </div>
-                                    )}
+                                    {/* Unique Micro-QR thumbnail (Blurred & Locked when under review) */}
+                                    <div style={{ flexShrink: 0, background: "#ffffff", borderRadius: 6, padding: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      <QRCodeVisual
+                                        value={pass.qrCode}
+                                        size={36}
+                                        showLabel={false}
+                                        blurred={pass.paymentStatus !== "Confirmed"}
+                                        blurText=""
+                                        blurAmount={16}
+                                      />
+                                    </div>
 
                                     <div style={{ minWidth: 0, flex: 1 }}>
                                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -706,7 +696,9 @@ export default function AttendeeDashboard() {
 
                                       <div style={{ display: "flex", gap: 14, fontSize: 11, color: "var(--c-text-3)", marginTop: 2, flexWrap: "wrap" }}>
                                         <span>Tier: <strong style={{ color: "#93c5fd" }}>{pass.tierName}</strong></span>
-                                        <span>Pass ID: <code style={{ color: "#60a5fa", fontWeight: 700 }}>{pass.qrCode}</code></span>
+                                        <span>Pass ID: <code style={{ color: pass.paymentStatus === "Confirmed" ? "#60a5fa" : "#f59e0b", fontWeight: 700 }}>
+                                          {pass.paymentStatus === "Confirmed" ? pass.qrCode : "🔒 Locked (In Review)"}
+                                        </code></span>
                                         <span>Price: <strong style={{ color: pass.price === 0 ? "#34d399" : "#ffffff" }}>{pass.price === 0 ? "Rs. 0 (Free)" : formatLKR(pass.price)}</strong></span>
                                       </div>
                                     </div>
@@ -816,48 +808,42 @@ export default function AttendeeDashboard() {
                   </div>
                 </div>
 
-                {/* High-Definition Unique Deterministic QR Code Badge (Only when Confirmed) */}
-                {selectedTicket.paymentStatus === "Confirmed" ? (
+                {/* High-Definition Scannable QR Code (Completely blurred with lock overlay during review) */}
+                <div style={{
+                  background: "#ffffff",
+                  padding: "16px",
+                  borderRadius: 14,
+                  textAlign: "center",
+                  marginBottom: 12,
+                  position: "relative"
+                }}>
+                  <QRCodeVisual
+                    key={selectedTicket.qrCode || selectedTicket.id}
+                    value={selectedTicket.qrCode || `EVENTFLOW-LK-${selectedTicket.id}`}
+                    size={160}
+                    showLabel={selectedTicket.paymentStatus === "Confirmed"}
+                    blurred={selectedTicket.paymentStatus !== "Confirmed"}
+                    blurText={selectedTicket.paymentStatus === "Rejected" ? "SLIP REJECTED" : "SLIP IN REVIEW"}
+                    blurAmount={16}
+                  />
+                </div>
+
+                {selectedTicket.paymentStatus !== "Confirmed" && (
                   <div style={{
-                    background: "#ffffff",
-                    padding: "16px",
-                    borderRadius: 14,
-                    textAlign: "center",
-                    marginBottom: 12,
-                    position: "relative"
-                  }}>
-                    <QRCodeVisual key={selectedTicket.qrCode || selectedTicket.id} value={selectedTicket.qrCode || `EVENTFLOW-LK-${selectedTicket.id}`} size={160} showLabel={true} />
-                  </div>
-                ) : (
-                  <div style={{
-                    background: "rgba(15, 23, 42, 0.95)",
-                    border: selectedTicket.paymentStatus === "Rejected" ? "1.5px dashed rgba(239, 68, 68, 0.5)" : "1.5px dashed rgba(245, 158, 11, 0.5)",
-                    borderRadius: 14,
-                    padding: "28px 18px",
+                    background: selectedTicket.paymentStatus === "Rejected" ? "rgba(239, 68, 68, 0.12)" : "rgba(245, 158, 11, 0.12)",
+                    border: selectedTicket.paymentStatus === "Rejected" ? "1.5px dashed rgba(239, 68, 68, 0.4)" : "1.5px dashed rgba(245, 158, 11, 0.4)",
+                    borderRadius: 12,
+                    padding: "14px 16px",
                     textAlign: "center",
                     marginBottom: 12
                   }}>
-                    <div style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: "50%",
-                      background: selectedTicket.paymentStatus === "Rejected" ? "rgba(239, 68, 68, 0.15)" : "rgba(245, 158, 11, 0.15)",
-                      color: selectedTicket.paymentStatus === "Rejected" ? "#ef4444" : "#f59e0b",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      margin: "0 auto 12px",
-                      fontSize: 22
-                    }}>
-                      {selectedTicket.paymentStatus === "Rejected" ? "⚠️" : "🔒"}
+                    <div style={{ fontSize: 13, fontWeight: 800, color: selectedTicket.paymentStatus === "Rejected" ? "#f87171" : "#fbbf24", marginBottom: 4 }}>
+                      {selectedTicket.paymentStatus === "Rejected" ? "⚠️ Payment Slip Rejected" : "🔒 Entrance QR Completely Blurred"}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "#ffffff", marginBottom: 4 }}>
-                      {selectedTicket.paymentStatus === "Rejected" ? "Payment Slip Rejected" : "Entrance QR Pass Locked"}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--c-text-2)", lineHeight: 1.5, maxWidth: 280, margin: "0 auto 12px" }}>
+                    <div style={{ fontSize: 11, color: "var(--c-text-2)", lineHeight: 1.5, maxWidth: 300, margin: "0 auto 8px" }}>
                       {selectedTicket.paymentStatus === "Rejected"
                         ? `Organizer Note: "${selectedTicket.rejectionReason || "Please upload an authentic transfer slip."}". Open chat below to re-upload.`
-                        : "Your bank transfer slip is currently pending review by the event organizer. Once approved, your official scannable entrance QR badge will unlock."}
+                        : "Your bank transfer slip is currently pending review by the event organizer. The QR code is completely blurred and locked until approved."}
                     </div>
                     <span className={`badge ${selectedTicket.paymentStatus === "Rejected" ? "badge-red" : "badge-amber"}`} style={{ fontSize: 10 }}>
                       {selectedTicket.paymentStatus === "Rejected" ? "Action Needed · Re-upload" : "Awaiting Organizer Approval"}

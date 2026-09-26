@@ -583,39 +583,51 @@ export default function EventDetail() {
 
                 {/* Issued Passes list preview */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-                  {issuedPasses.map((pass, i) => (
-                    <div key={pass.id} style={{
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: "var(--radius-sm)",
-                      padding: "12px 14px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 16
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={{ background: "#ffffff", borderRadius: 8, padding: 3, flexShrink: 0 }}>
-                          <QRCodeVisual value={pass.qrCode} size={48} showLabel={false} />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: "#93c5fd", fontWeight: 700, textTransform: "uppercase" }}>
-                            Pass #{i + 1} · {pass.tierName}
+                  {issuedPasses.map((pass, i) => {
+                    const isConfirmed = pass.paymentStatus === "Confirmed";
+                    return (
+                      <div key={pass.id} style={{
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "12px 14px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 16
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ background: "#ffffff", borderRadius: 8, padding: 3, flexShrink: 0 }}>
+                            <QRCodeVisual
+                              value={pass.qrCode}
+                              size={52}
+                              showLabel={false}
+                              blurred={!isConfirmed}
+                              blurText="In Review"
+                              blurAmount={16}
+                            />
                           </div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: "#ffffff", marginTop: 2 }}>{pass.holderName}</div>
-                          <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 2 }}>
-                            NIC: <strong style={{ color: "var(--c-text-2)" }}>{pass.holderNic}</strong>
+                          <div>
+                            <div style={{ fontSize: 11, color: "#93c5fd", fontWeight: 700, textTransform: "uppercase" }}>
+                              Pass #{i + 1} · {pass.tierName}
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "#ffffff", marginTop: 2 }}>{pass.holderName}</div>
+                            <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 2 }}>
+                              NIC: <strong style={{ color: "var(--c-text-2)" }}>{pass.holderNic}</strong>
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <span className={`badge ${isConfirmed ? "badge-green" : "badge-amber"}`} style={{ fontSize: 10 }}>
+                            {isConfirmed ? "● Active Pass" : "● Slip Under Review"}
+                          </span>
+                          <div style={{ fontFamily: "monospace", fontSize: 10, color: isConfirmed ? "var(--c-text-3)" : "#f59e0b", marginTop: 4, fontWeight: isConfirmed ? 400 : 700 }}>
+                            {isConfirmed ? pass.qrCode : "🔒 Locked · In Review"}
                           </div>
                         </div>
                       </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <span className={`badge ${pass.paymentStatus === "Confirmed" ? "badge-green" : "badge-amber"}`} style={{ fontSize: 10 }}>
-                          {pass.paymentStatus === "Confirmed" ? "● Active Pass" : "● Slip Under Review"}
-                        </span>
-                        <div style={{ fontFamily: "monospace", fontSize: 10, color: "var(--c-text-3)", marginTop: 4 }}>{pass.qrCode}</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div style={{ display: "flex", gap: 10 }}>
