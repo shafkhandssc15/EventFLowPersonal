@@ -28,8 +28,8 @@ export default function AdminDashboard() {
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
   const [users, setUsers] = useState(getRegisteredUsers);
-  const [eventsCount, setEventsCount] = useState(6);
-  const [venuesCount, setVenuesCount] = useState(6);
+  const [eventsCount, setEventsCount] = useState(0);
+  const [venuesCount, setVenuesCount] = useState(0);
   const [promotionNotice, setPromotionNotice] = useState(null);
   const [adminTab, setAdminTab] = useState("approvals"); // "approvals" | "users" | "revenue" | "database" | "auditlog"
   const [modalError, setModalError] = useState(""); // FIX: was missing, caused crash
@@ -72,9 +72,123 @@ export default function AdminDashboard() {
     return true;
   });
 
+  async function syncWithSupabase() {
+    // 1. Fetch real Users from Supabase
+    try {
+      const { data: dbUsers, error: uErr } = await supabase
+        .from("Users")
+        .select("*")
+        .order("CreatedAt", { ascending: false });
+
+      if (!uErr && dbUsers && dbUsers.length > 0) {
+        const mapped = dbUsers.map(row => ({
+          id: row.Id || row.id,
+          name: row.Name || row.name || (row.Email ? row.Email.split("@")[0] : "User"),
+          email: row.Email || row.email,
+          role: row.Role || row.role || "Attendee",
+          nic: row.Nic || row.nic || "199012304567",
+          contact: row.Contact || row.contact || "+94 77 123 4567",
+          address: row.Address || row.address || "Sri Lanka",
+          status: row.IsApproved === false ? "Pending Verification" : "Active",
+          isApproved: row.IsApproved !== false,
+          createdAt: row.CreatedAt || row.createdAt
+        }));
+
+        const localReg = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
+        const localAppr = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
+        const combined = [...mapped];
+        [...localReg, ...localAppr].forEach(loc => {
+          if (loc.email && !combined.some(c => c.email?.toLowerCase() === loc.email.toLowerCase())) {
+            combined.push({
+              ...loc,
+              status: loc.status || "Active"
+            });
+          }
+        });
+
+        setUsers(combined);
+        localStorage.setItem("ef_registered_users", JSON.stringify(combined));
+      }
+    } catch (e) {
+      console.warn("Supabase Users sync warning:", e);
+    }
+
+    // 2. Fetch real Events count from Supabase
+    try {
+      const { count: eCount, error: eErr } = await supabase
+        .from("Events")
+        .select("*", { count: "exact", head: true });
+      if (!eErr && typeof eCount === "number") {
+        setEventsCount(eCount);
+      }
+    } catch {}
+
+    // 3. Fetch real Venues count from Supabase
+    try {
+      const { count: vCount, error: vErr } = await supabase
+        .from("Venues")
+        .select("*", { count: "exact", head: true });
+      if (!vErr && typeof vCount === "number") {
+        setVenuesCount(vCount);
+      }
+    } catch {}
+
+    // 4. Fetch real Pending Approvals from Supabase ApprovalRequests table
+    try {
+      const { data: dbReqs, error: rErr } = await supabase
+        .from("ApprovalRequests")
+        .select("*")
+        .order("CreatedAt", { ascending: false });
+
+      if (!rErr && dbReqs) {
+        const mappedReqs = dbReqs
+          .map(r => {
+            try {
+              const parsed = JSON.parse(r.Reason || "{}");
+              return {
+                id: r.Id,
+                name: parsed.name || r.EntityName || "Request",
+                email: parsed.email || parsed.applicantEmail || "",
+                role: parsed.role || r.Role || "Organizer",
+                nic: parsed.nic || "—",
+                contact: parsed.contact || "—",
+                type: r.Type || parsed.type || "USER_REGISTRATION",
+                status: r.Status === "Pending" ? "PendingAdminApproval" : r.Status,
+                submittedAt: r.CreatedAt,
+                details: parsed
+              };
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
+
+        const localSaved = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
+        const mergedReqs = [...mappedReqs];
+        localSaved.forEach(ls => {
+          if (!mergedReqs.some(mr => mr.id === ls.id || (mr.email && mr.email === ls.email))) {
+            mergedReqs.push(ls);
+          }
+        });
+        const activeOnly = mergedReqs.filter(r => r.status === "Pending" || r.status === "PendingAdminApproval");
+        setPendingApprovals(activeOnly);
+        localStorage.setItem("ef_pending_approvals", JSON.stringify(activeOnly));
+      }
+    } catch {}
+  }
+
   useEffect(() => {
-    api.listEvents().then(r => setEventsCount(r.items?.length || r?.length || 6)).catch(() => {});
-    api.searchVenues().then(r => setVenuesCount(r.items?.length || r?.length || 6)).catch(() => {});
+    syncWithSupabase();
+
+    // Fallback API counts if backend is up
+    api.listEvents().then(r => {
+      const len = r.items?.length || r?.length;
+      if (typeof len === "number") setEventsCount(len);
+    }).catch(() => {});
+    api.searchVenues().then(r => {
+      const len = r.items?.length || r?.length;
+      if (typeof len === "number") setVenuesCount(len);
+    }).catch(() => {});
 
     function syncPendingApprovals() {
       try {
@@ -84,10 +198,21 @@ export default function AdminDashboard() {
     }
 
     window.addEventListener("storage", syncPendingApprovals);
-    const interval = setInterval(syncPendingApprovals, 2000);
+    const interval = setInterval(syncPendingApprovals, 3000);
+
+    // Supabase Realtime channel for live database updates
+    const channel = supabase
+      .channel("admin-realtime-data")
+      .on("postgres_changes", { event: "*", schema: "public", table: "Users" }, () => syncWithSupabase())
+      .on("postgres_changes", { event: "*", schema: "public", table: "Events" }, () => syncWithSupabase())
+      .on("postgres_changes", { event: "*", schema: "public", table: "Venues" }, () => syncWithSupabase())
+      .on("postgres_changes", { event: "*", schema: "public", table: "ApprovalRequests" }, () => syncWithSupabase())
+      .subscribe();
+
     return () => {
       window.removeEventListener("storage", syncPendingApprovals);
       clearInterval(interval);
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -466,7 +591,7 @@ export default function AdminDashboard() {
           </div>
           <div className="stat-card" style={{ cursor: "pointer" }} onClick={() => setAdminTab("users")}>
             <div className="stat-label">Verified Users (NIC)</div>
-            <div className="stat-value" style={{ color: "#60a5fa" }}>{users.length + 148}</div>
+            <div className="stat-value" style={{ color: "#60a5fa" }}>{users.length}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Venues Mapped (OSM)</div>
@@ -479,7 +604,7 @@ export default function AdminDashboard() {
           <div className="stat-card" style={{ cursor: "pointer" }} onClick={() => setAdminTab("revenue")}>
             <div className="stat-label">Platform Revenue (LKR)</div>
             <div className="stat-value" style={{ color: "#34d399", fontSize: 18 }}>
-              {totalRevenueLKR > 0 ? `Rs. ${Number(totalRevenueLKR).toLocaleString()}` : "—"}
+              {totalRevenueLKR > 0 ? formatLKR(totalRevenueLKR) : "Rs. 0"}
             </div>
           </div>
         </div>
