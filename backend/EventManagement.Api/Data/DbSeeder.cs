@@ -18,6 +18,25 @@ public static class DbSeeder
 
             var hasher = new PasswordHasher<User>();
 
+            // One-time migration: this database predates real auth and has rows
+            // (including real accounts, not just the demo/* seed ones) whose
+            // PasswordHash column holds a plaintext password directly, from
+            // before AuthController hashed anything. ASP.NET Core Identity's
+            // PasswordHasher never produces a value under 40 chars, so anything
+            // shorter than that is legacy plaintext — rehash it in place using
+            // its own current value as the password. This does not change any
+            // account's actual password, only how it's stored.
+            var legacyPlaintextUsers = await db.Users.Where(u => u.PasswordHash.Length < 40).ToListAsync();
+            foreach (var u in legacyPlaintextUsers)
+            {
+                u.PasswordHash = hasher.HashPassword(u, u.PasswordHash);
+            }
+            if (legacyPlaintextUsers.Count > 0)
+            {
+                await db.SaveChangesAsync();
+                Console.WriteLine($"[DbSeeder] Rehashed {legacyPlaintextUsers.Count} legacy plaintext password(s).");
+            }
+
             // 1. Seed Users if not present
             var organizerId = Guid.Parse("00000000-0000-0000-0000-0000000000aa");
             var attendeeId  = Guid.Parse("00000000-0000-0000-0000-000000000001");
