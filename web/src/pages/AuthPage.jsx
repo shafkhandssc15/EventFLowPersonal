@@ -148,7 +148,35 @@ export default function AuthPage() {
         return;
       }
 
-      // 3. Authenticate with registered users in localStorage (registered via Sign Up form)
+      // 3. Authenticate with Supabase Database (public.Users table)
+      try {
+        const { data: dbUsers, error: dbErr } = await supabase
+          .from("Users")
+          .select("*")
+          .ilike("Email", cleanEmail);
+
+        if (!dbErr && dbUsers && dbUsers.length > 0) {
+          const uRow = dbUsers[0];
+          if (uRow.PasswordHash === password || uRow.password === password) {
+            login({
+              id: uRow.Id || uRow.id,
+              name: uRow.Name || uRow.name || "Administrator",
+              role: uRow.Role || uRow.role || "Admin",
+              email: uRow.Email || uRow.email,
+              nic: "199012304567",
+              contact: "+94 11 234 5678",
+              address: "Level 14, World Trade Center, Colombo 01"
+            });
+            return;
+          } else {
+            throw new Error("Incorrect password for this account.");
+          }
+        }
+      } catch (err) {
+        if (err.message === "Incorrect password for this account.") throw err;
+      }
+
+      // 4. Authenticate with registered users in localStorage (registered via Sign Up form)
       const registeredUsers = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
       const registeredMatch = registeredUsers.find(
         u => u.email.toLowerCase() === cleanEmail && u.password === password
