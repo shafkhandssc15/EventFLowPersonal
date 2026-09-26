@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 import { useRealtime } from "../context/RealtimeContext.jsx";
 import { IcSearch, IcCalendar, IcMapPin, IcUsers, IcCompass, IcGrid } from "../components/Icons.jsx";
 import { FALLBACK_IMAGE } from "../api/supabase.js";
@@ -16,14 +17,33 @@ const STATUS_MAP = {
 };
 
 export default function EventsList() {
+  const { user } = useAuth();
   // ── Realtime: events come from central Supabase subscription ───────────────
   const { events: allEvents, connected, lastUpdate } = useRealtime();
   const [cat, setCat] = useState("");
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState("grid");
 
-  // Category + search filter applied on the live events array
-  const filtered = allEvents
+  // Rule: Draft events are ONLY visible to the creator organizer.
+  // Attendees, visitors, and other organizers CANNOT see draft events!
+  const isDraftVisible = (ev) => {
+    if (ev.status !== "Draft") return true;
+    if (!user) return false;
+    if (user.role === "Admin") return true;
+    if (user.role === "Organizer") {
+      return (
+        (ev.organizerId && ev.organizerId === user.id) ||
+        (ev.organizerEmail && user.email && ev.organizerEmail.toLowerCase() === user.email.toLowerCase()) ||
+        (ev.organizerName && user.name && ev.organizerName.toLowerCase().includes(user.name.toLowerCase()))
+      );
+    }
+    return false;
+  };
+
+  const visibleEvents = allEvents.filter(isDraftVisible);
+
+  // Category + search filter applied on the visible events array
+  const filtered = visibleEvents
     .filter(ev => !cat || ev.category === cat)
     .filter(ev =>
       !search ||

@@ -314,6 +314,42 @@ export default function EventDetail() {
 
   if (!event) return <div className="spinner-wrap"><div className="spinner" /></div>;
 
+  // Rule: Draft events can ONLY be viewed by the creator organizer (or Admin).
+  // Attendees, visitors, and other organizers CANNOT view draft events!
+  const isDraftCreator = user && (
+    user.role === "Admin" ||
+    (user.role === "Organizer" && (
+      (event.organizerId && event.organizerId === user.id) ||
+      (event.organizerEmail && user.email && event.organizerEmail.toLowerCase() === user.email.toLowerCase()) ||
+      (event.organizerName && user.name && event.organizerName.toLowerCase().includes(user.name.toLowerCase()))
+    ))
+  );
+
+  if (event.status === "Draft" && !isDraftCreator) {
+    return (
+      <div className="page-body" style={{ maxWidth: 540, margin: "70px auto", textAlign: "center", padding: "0 20px" }}>
+        <div style={{
+          background: "rgba(15, 23, 42, 0.95)",
+          border: "1.5px dashed rgba(245, 158, 11, 0.5)",
+          borderRadius: "var(--radius)",
+          padding: "40px 32px",
+          boxShadow: "0 12px 36px rgba(0,0,0,0.4)"
+        }}>
+          <div style={{ fontSize: 44, marginBottom: 16 }}>🔒</div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: "#ffffff", marginBottom: 10 }}>
+            Private Draft Event
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--c-text-2)", lineHeight: 1.6, marginBottom: 24 }}>
+            This event is currently in <strong>Draft mode</strong>. Per platform privacy rules, draft events are only visible to the organizer who created them and cannot be viewed or booked by attendees or other organizers.
+          </p>
+          <Link to="/events" className="btn btn-primary" style={{ padding: "10px 20px" }}>
+            ← Return to Discover Events
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const cover = event.image || event.imageUrl || FALLBACK_IMAGE;
   const start = new Date(event.startDate || Date.now());
   const end   = new Date(event.endDate || Date.now() + 7200000);
@@ -340,6 +376,25 @@ export default function EventDetail() {
           <span className={`badge ${STATUS[event.status] || "badge-green"}`}>{event.status || "Published"}</span>
         </div>
       </div>
+
+      {event.status === "Draft" && isDraftCreator && (
+        <div style={{
+          background: "linear-gradient(90deg, rgba(245,158,11,0.2), rgba(245,158,11,0.08))",
+          borderBottom: "1px solid rgba(245,158,11,0.4)",
+          padding: "12px 24px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          color: "#fbbf24",
+          fontSize: 13,
+          fontWeight: 600
+        }}>
+          <span style={{ fontSize: 18 }}>🔒</span>
+          <span>
+            <strong>Organizer Draft Mode:</strong> This event is a private draft. Attendees and other organizers cannot see this page. Publish it from your Organizer Dashboard when ready to launch tickets.
+          </span>
+        </div>
+      )}
 
       {/* Hero Cover Banner */}
       <div style={{ position: "relative", height: 320, overflow: "hidden" }}>
@@ -473,11 +528,12 @@ export default function EventDetail() {
                       </div>
 
                       <button
-                        className={soldOut ? "btn btn-secondary btn-full btn-sm" : "btn btn-primary btn-full btn-sm"}
-                        disabled={soldOut}
-                        onClick={() => !soldOut && openBooking(tt)}
+                        className={soldOut || event.status === "Draft" ? "btn btn-secondary btn-full btn-sm" : "btn btn-primary btn-full btn-sm"}
+                        disabled={soldOut || event.status === "Draft"}
+                        onClick={() => !soldOut && event.status !== "Draft" && openBooking(tt)}
+                        style={event.status === "Draft" ? { opacity: 0.65, cursor: "not-allowed" } : {}}
                       >
-                        {soldOut ? "Sold Out" : `Select Tier · ${formatLKR(tt.price)}`}
+                        {soldOut ? "Sold Out" : event.status === "Draft" ? "🔒 In Draft (Publish to Enable)" : `Select Tier · ${formatLKR(tt.price)}`}
                       </button>
                     </div>
                   );

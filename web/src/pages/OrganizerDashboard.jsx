@@ -309,8 +309,8 @@ export default function OrganizerDashboard() {
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
-  async function submit(e) {
-    e.preventDefault();
+  async function submit(e, targetStatus = "Published") {
+    if (e && e.preventDefault) e.preventDefault();
     setError(null);
     setSuccess(null);
 
@@ -337,6 +337,9 @@ export default function OrganizerDashboard() {
         }
       }
 
+      const existingEvent = editingEventId ? events.find(e => e.id === editingEventId) : null;
+      const finalStatus = targetStatus || existingEvent?.status || "Published";
+
       const newEvent = {
         id: editingEventId || crypto.randomUUID(),
         organizerId: user?.id || "00000000-0000-0000-0000-0000000000aa",
@@ -352,7 +355,7 @@ export default function OrganizerDashboard() {
         startDate: form.startDate ? new Date(form.startDate).toISOString() : new Date().toISOString(),
         endDate:   form.endDate ? new Date(form.endDate).toISOString() : new Date(Date.now() + 86400000).toISOString(),
         capacity:  Number(form.capacity),
-        status:    "Published",
+        status:    finalStatus,
         image:     form.image || selectedVenue.image || FALLBACK_IMAGE,
         ticketTypes: [
           {
@@ -373,10 +376,12 @@ export default function OrganizerDashboard() {
       }
 
       if (editingEventId) {
-        setSuccess(`Event "${savedEvent.title}" successfully updated!`);
+        setSuccess(`Event "${savedEvent.title}" successfully updated (${finalStatus})!`);
       } else {
         window.dispatchEvent(new Event("storage"));
-        setSuccess(`Event "${savedEvent.title}" successfully hosted at registered venue "${selectedVenue.name}"! ${apiError ? "(saved locally – backend offline)" : "Saved to Supabase ✓"}`);
+        setSuccess(finalStatus === "Draft"
+          ? `Event "${savedEvent.title}" saved as Private Draft! It is only visible to you until published.`
+          : `Event "${savedEvent.title}" successfully published at registered venue "${selectedVenue.name}"! ${apiError ? "(saved locally – backend offline)" : "Saved to Supabase ✓"}`);
       }
 
       setShowForm(false);
@@ -479,11 +484,31 @@ export default function OrganizerDashboard() {
   }
 
 
+  async function publishDraftEvent(ev) {
+    if (!isEventCreator(ev, user)) {
+      setError("Permission denied: You can only publish events that you have created.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const updated = { ...ev, status: "Published" };
+      await upsertEvent(updated, true);
+      setSuccess(`Event "${ev.title}" is now PUBLISHED and live for attendees!`);
+    } catch (err) {
+      setError("Failed to publish: " + err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Rule: Draft events are ONLY visible to their creator organizer. Other organizers cannot see them.
+  const visibleEvents = events.filter(e => e.status !== "Draft" || isEventCreator(e, user));
+
   const stats = {
-    total:     events.length,
-    published: events.filter(e => e.status === "Published").length,
-    draft:     events.filter(e => e.status === "Draft").length,
-    capacity:  events.reduce((s, e) => s + (Number(e.capacity) || 0), 0),
+    total:     visibleEvents.length,
+    published: visibleEvents.filter(e => e.status === "Published").length,
+    draft:     events.filter(e => e.status === "Draft" && isEventCreator(e, user)).length,
+    capacity:  visibleEvents.reduce((s, e) => s + (Number(e.capacity) || 0), 0),
   };
 
   return (
@@ -714,10 +739,25 @@ export default function OrganizerDashboard() {
                 />
               </div>
 
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12, flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-secondary" onClick={() => { setShowForm(false); setEditingEventId(null); }}>Cancel</button>
-                <button type="submit" className="btn btn-primary btn-lg" disabled={busy}>
-                  {busy ? "Saving…" : (editingEventId ? "Save Changes" : "Publish Live Event at Venue")}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={(e) => submit(e, "Draft")}
+                  style={{ border: "1.5px dashed #f59e0b", color: "#fbbf24", fontWeight: 700 }}
+                  title="Save event as a private draft. Only you will be able to see it."
+                >
+                  🔒 Save as Private Draft
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-lg"
+                  disabled={busy}
+                  onClick={(e) => submit(e, "Published")}
+                >
+                  {busy ? "Saving…" : (editingEventId ? "Save & Publish" : "Publish Live Event at Venue")}
                 </button>
               </div>
             </form>
@@ -787,9 +827,9 @@ export default function OrganizerDashboard() {
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>Managed Sri Lankan Events ({events.length})</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>Managed Sri Lankan Events ({visibleEvents.length})</div>
                 <div style={{ fontSize: 12, color: "var(--c-text-3)", marginTop: 2 }}>
-                  Organizers can only edit &amp; request deletion for events they have personally created.
+                  Draft events are strictly private to their creator. Published events are discoverable across the platform.
                 </div>
               </div>
 
@@ -808,8 +848,9 @@ export default function OrganizerDashboard() {
                   onClick={() => setEventFilter("all")}
                   className={`btn btn-sm ${eventFilter === "all" ? "btn-primary" : "btn-secondary"}`}
                   style={{ fontSize: 12 }}
+                  title="All published platform events plus your private drafts (other organizers' drafts are hidden)"
                 >
-                  All Platform Events ({events.length})
+                  All Platform Events ({visibleEvents.length})
                 </button>
               </div>
             </div>
@@ -821,7 +862,10 @@ export default function OrganizerDashboard() {
                 <div className="empty-title">No events yet</div>
                 <div className="empty-desc">Click "Create Event" to host your first event at a registered venue.</div>
               </div>
-            ) : (events.filter(e => eventFilter === "all" || isEventCreator(e, user))).length === 0 ? (
+            ) : (events.filter(ev => {
+              if (ev.status === "Draft") return isEventCreator(ev, user);
+              return eventFilter === "all" || isEventCreator(ev, user);
+            })).length === 0 ? (
               <div className="empty">
                 <div className="empty-title">No events created by you yet</div>
                 <div className="empty-desc">You have not created any events yet. Click "Create Event" above to host an event at an approved venue.</div>
@@ -841,7 +885,14 @@ export default function OrganizerDashboard() {
                   </thead>
                   <tbody>
                     {events
-                      .filter(ev => eventFilter === "all" || isEventCreator(ev, user))
+                      .filter(ev => {
+                        // Rule: Draft events MUST ONLY be visible to their creator organizer!
+                        // Other organizers CANNOT see another organizer's draft events!
+                        if (ev.status === "Draft") {
+                          return isEventCreator(ev, user);
+                        }
+                        return eventFilter === "all" || isEventCreator(ev, user);
+                      })
                       .map(ev => {
                         const isOwner = isEventCreator(ev, user);
                         const isDeletionPending = ev.status === "Deletion Requested" || ev.deletionPending;
@@ -874,14 +925,29 @@ export default function OrganizerDashboard() {
                               {ev.startDate ? new Date(ev.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
                             </td>
                             <td style={{ fontSize: 13 }}>{Number(ev.capacity || 1000).toLocaleString()} pax</td>
-                            <td><span className={`badge ${STATUS_BADGE[ev.status] || "badge-green"}`}>{ev.status || "Published"}</span></td>
                             <td>
-                              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                              <span className={`badge ${ev.status === "Draft" ? "badge-gray" : (STATUS_BADGE[ev.status] || "badge-green")}`}>
+                                {ev.status === "Draft" ? "🔒 Private Draft" : (ev.status || "Published")}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                                 <a href={`/events/${ev.id}`} className="btn btn-ghost btn-sm">
                                   <IcEye style={{ width: 13, height: 13 }} /> View Pass
                                 </a>
                                 {isOwner ? (
                                   <>
+                                    {ev.status === "Draft" && (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-primary"
+                                        style={{ background: "#10b981", borderColor: "#059669", fontSize: 11, padding: "3px 8px" }}
+                                        onClick={() => publishDraftEvent(ev)}
+                                        title="Publish draft to make it live for attendees"
+                                      >
+                                        Publish Live →
+                                      </button>
+                                    )}
                                     <button className="btn btn-ghost btn-sm" onClick={() => handleEditClick(ev)} style={{ color: "#60a5fa" }}>
                                       Edit
                                     </button>
@@ -890,17 +956,18 @@ export default function OrganizerDashboard() {
                                         className="form-input"
                                         style={{ height: 28, fontSize: 11, width: 116, background: "var(--c-bg-1)", padding: "0 4px" }}
                                         value={ev.status || "Published"}
-                                        onChange={e => {
+                                        onChange={async e => {
                                           const ns = e.target.value;
                                           const upd = events.map(x => x.id === ev.id ? { ...x, status: ns } : x);
                                           setEvents(upd);
                                           localStorage.setItem("ef_events", JSON.stringify(upd));
                                           window.dispatchEvent(new Event("storage"));
-                                          setSuccess(`Event status set to "${ns}".`);
+                                          await upsertEvent({ ...ev, status: ns }, true);
+                                          setSuccess(`Event status set to "${ns}" and synced with Supabase.`);
                                         }}
                                       >
-                                        <option value="Draft">Draft</option>
-                                        <option value="Published">Published</option>
+                                        <option value="Draft">Draft (Private)</option>
+                                        <option value="Published">Published (Public)</option>
                                         <option value="Ongoing">Ongoing</option>
                                         <option value="Completed">Completed</option>
                                         <option value="Cancelled">Cancelled</option>
@@ -918,7 +985,7 @@ export default function OrganizerDashboard() {
                                   </>
                                 ) : (
                                   <span style={{ fontSize: 11, color: "var(--c-text-3)", padding: "4px 6px" }} title="Only the event creator can edit or delete this event">
-                                    Creator Edit Only
+                                    Viewer Only
                                   </span>
                                 )}
                               </div>
