@@ -454,7 +454,9 @@ dotnet run
 - API: `http://localhost:5000`
 - Swagger UI: `http://localhost:5000/swagger` (has a "Bearer" auth box — paste `Bearer <token>` from `/api/auth/login` to call protected endpoints)
 
-**Authentication:** every endpoint except `/api/auth/*`, `GET /api/events`, `GET /api/events/{id}`, `GET /api/venues*`, `GET /api/vendors*` requires a JWT (`Authorization: Bearer <token>`), obtained from `POST /api/auth/login`. Seeded demo accounts (all password `Demo@12345`):
+**Authentication:** every endpoint except `/api/auth/*`, `GET /api/events`, `GET /api/events/{id}`, `GET /api/venues*`, `GET /api/vendors*` requires a JWT (`Authorization: Bearer <token>`), obtained from `POST /api/auth/login`.
+
+On a **fresh database**, `DbSeeder` creates four demo accounts, all password `Demo@12345`:
 
 | Email | Role |
 |---|---|
@@ -463,7 +465,12 @@ dotnet run
 | `vendor@demo.com` | VendorVenueManager |
 | `admin@demo.com` | Admin |
 
-**Security note:** `appsettings.json` (tracked in git) only ever holds placeholder secrets. Real connection strings/JWT keys belong in `appsettings.Development.json` (gitignored) locally, or environment variables (`ConnectionStrings__Default`, `Jwt__Key`) in deployment. If this repository was ever pushed with a real database password committed in `appsettings.json`, rotate that password in your database provider before deploying — a committed secret should be treated as compromised even after removal, since it remains in git history.
+On **this project's real Supabase database**, the `organizer@demo.com`/`vendor@demo.com`/`admin@demo.com` seed IDs were already occupied by real team member accounts (`organizer.eventflow@gmail.com`, `vendor.eventflow@gmail.com`, `admin.eventflow@gmail.com`) from before real auth existed, so `DbSeeder` correctly left those in place rather than overwriting them — log in with your own team email/password instead. `attendee@demo.com` still exists there as a generic test account (its original password was preserved, just rehashed — ask whoever set it up, or reset it via `/api/auth/register` with a new email if needed).
+
+**Security notes:**
+- `appsettings.json` (tracked in git) only ever holds placeholder secrets. Real connection strings/JWT keys belong in `appsettings.Development.json` (gitignored) locally, or environment variables (`ConnectionStrings__Default`, `Jwt__Key`) in deployment.
+- The Supabase database password that was previously committed to `appsettings.json` has been rotated. Treat the old value as permanently compromised (it remains in git history/anywhere it was shared) — don't reuse it.
+- `DbSeeder` also migrates any legacy plaintext `PasswordHash` values it finds (a real issue this database had before real auth existed — several accounts' passwords were stored as plain text) to a proper hash on startup, preserving each account's existing password.
 
 ### 4. Start the Web App
 
