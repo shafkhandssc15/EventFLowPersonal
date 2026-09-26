@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="EventManagement.Api.Tests/EventManagement.Api.Tests.csproj" />
+  <Project Path="EventManagement.Api/EventManagement.Api.csproj" />
+</Solution>

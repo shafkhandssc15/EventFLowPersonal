@@ -1,0 +1,31 @@
+name: Agentic AI Service CI
+
+on:
+  push:
+    branches: [main]
+    paths: ["agents/**"]
+  pull_request:
+    branches: [main]
+    paths: ["agents/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agents
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run agent tests
+        run: pytest -v
