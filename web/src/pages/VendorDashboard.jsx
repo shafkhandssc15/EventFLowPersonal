@@ -72,7 +72,7 @@ export default function VendorDashboard() {
 
   function loadAll() {
     setLoading(true);
-    // Load existing custom venues from localStorage or default
+    // 1. Load existing custom venues from Supabase, localStorage and defaults
     try {
       const customVenues = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
       const combined = [...customVenues, ...SAMPLE_VENUES.filter(sv => !customVenues.some(cv => cv.id === sv.id))];
@@ -80,6 +80,42 @@ export default function VendorDashboard() {
     } catch {
       setVenues(SAMPLE_VENUES);
     }
+
+    // Direct fetch from Supabase Venues table
+    supabase
+      .from("Venues")
+      .select("*")
+      .order("CreatedAt", { ascending: false })
+      .then(({ data: dbVenues, error: vErr }) => {
+        if (!vErr && dbVenues && dbVenues.length > 0) {
+          const mapped = dbVenues.map(row => ({
+            id: row.Id || row.id,
+            ownerId: row.OwnerId || row.vendorId || row.ownerId,
+            vendorId: row.OwnerId || row.vendorId || row.ownerId,
+            name: row.Name || row.name,
+            location: row.Location || row.location,
+            city: row.City || row.city || "Colombo",
+            capacity: Number(row.Capacity || row.capacity) || 1000,
+            pricePerHour: Number(row.PricePerHour || row.pricePerHour) || 0,
+            image: row.Image || row.image || FALLBACK_IMAGE,
+            lat: row.Lat || row.lat || 6.9271,
+            lng: row.Lng || row.lng || 79.8612,
+            amenities: row.Amenities || row.amenities || ["WiFi", "Parking", "AC"],
+            description: row.Description || row.description || "",
+            isActive: row.IsActive ?? true
+          }));
+
+          setVenues(prev => {
+            const next = [...mapped];
+            prev.forEach(p => {
+              if (!next.some(n => n.id === p.id)) next.push(p);
+            });
+            localStorage.setItem("ef_registered_venues", JSON.stringify(next));
+            return next;
+          });
+        }
+      })
+      .catch(err => console.warn("Supabase Venues load error:", err));
 
     try {
       const evs = JSON.parse(localStorage.getItem("ef_events") || "[]");
