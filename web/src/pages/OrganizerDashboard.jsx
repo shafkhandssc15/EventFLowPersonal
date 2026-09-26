@@ -100,72 +100,19 @@ export default function OrganizerDashboard() {
     // 3. Events are live via useRealtime() — no fetch needed here
     setLoading(false);
 
-    // 4. Load Master Bookings for Slip Verification
+    // 4. Load Master Bookings for Slip Verification (Only real bookings from attendees)
     try {
       const savedBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
-      if (savedBookings.length > 0) {
-        setMasterBookings(savedBookings);
-      } else {
-        // Initial realistic Sri Lankan bookings with bank transfer payment slips
-        const sampleSlipData = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%23ffffff'/%3E%3Crect x='20' y='20' width='560' height='360' fill='none' stroke='%23059669' stroke-width='2' stroke-dasharray='4'/%3E%3Ctext x='300' y='60' fill='%23065f46' font-size='20' font-weight='bold' text-anchor='middle' font-family='sans-serif'%3ECOMMERCIAL BANK OF CEYLON PLC%3C/text%3E%3Ctext x='300' y='85' fill='%236b7280' font-size='12' text-anchor='middle' font-family='sans-serif'%3EE-BANKING TRANSFER RECEIPT%3C/text%3E%3Cline x1='40' y1='105' x2='560' y2='105' stroke='%23e5e7eb' stroke-width='1.5'/%3E%3Ctext x='50' y='140' fill='%23374151' font-size='13' font-family='sans-serif'%3ETransaction Ref:%3C/text%3E%3Ctext x='200' y='140' fill='%23111827' font-weight='bold' font-size='13' font-family='monospace'%3ETXN-COMB-99882%3C/text%3E%3Ctext x='50' y='170' fill='%23374151' font-size='13' font-family='sans-serif'%3EPaid Amount:%3C/text%3E%3Ctext x='200' y='170' fill='%23059669' font-weight='bold' font-size='15' font-family='sans-serif'%3ELKR 30,000.00%3C/text%3E%3Ctext x='50' y='200' fill='%23374151' font-size='13' font-family='sans-serif'%3EBeneficiary:%3C/text%3E%3Ctext x='200' y='200' fill='%23111827' font-weight='bold' font-size='13' font-family='sans-serif'%3EEventFlow Technologies LK%3C/text%3E%3Ctext x='50' y='230' fill='%23374151' font-size='13' font-family='sans-serif'%3EAccount Number:%3C/text%3E%3Ctext x='200' y='230' fill='%23111827' font-weight='bold' font-size='13' font-family='monospace'%3E1000-8849-2231%3C/text%3E%3Ctext x='50' y='260' fill='%23374151' font-size='13' font-family='sans-serif'%3EDate &amp; Time:%3C/text%3E%3Ctext x='200' y='260' fill='%23111827' font-size='13' font-family='sans-serif'%3E2027-04-10 14:22:15%3C/text%3E%3Crect x='50' y='295' width='500' height='45' rx='6' fill='%23ecfdf5' stroke='%23a7f3d0'/%3E%3Ctext x='300' y='323' fill='%23065f46' font-size='12' font-weight='bold' text-anchor='middle' font-family='sans-serif'%3E%E2%9C%93 TRANSFER COMPLETED SUCCESSFULLY %C2%B7 VERIFIED BY BANK%3C/text%3E%3C/svg%3E";
-
-        const initial = [
-          {
-            bookingRef: "BK-LK-883011",
-            eventId: "ev-lk-001",
-            eventTitle: SAMPLE_EVENTS[0]?.title || "Sri Lanka Autonomous Systems Summit 2027",
-            attendeeId: "att-kasun-01",
-            attendeeName: "Kasun Perera",
-            attendeeEmail: "kasun.p@gmail.com",
-            attendeeNic: "199418290384",
-            attendeeContact: "+94 77 123 4567",
-            passCount: 2,
-            totalAmount: 30000,
-            bankName: "Commercial Bank of Ceylon",
-            bankRefNo: "TXN-COMB-99882",
-            paymentSlipUrl: sampleSlipData,
-            status: "PendingApproval",
-            createdAt: new Date(Date.now() - 3600000).toISOString()
-          },
-          {
-            bookingRef: "BK-LK-908214",
-            eventId: "ev-lk-001",
-            eventTitle: SAMPLE_EVENTS[0]?.title || "Sri Lanka Autonomous Systems Summit 2027",
-            attendeeId: "00000000-0000-0000-0000-000000000001",
-            attendeeName: "Sam Taylor",
-            attendeeEmail: "attendee@demo.com",
-            attendeeNic: user?.nic || "199878901234",
-            attendeeContact: user?.contact || "+94 71 987 6543",
-            passCount: 10,
-            totalAmount: 165000,
-            bankName: "Bank of Ceylon (BOC)",
-            bankRefNo: "TXN-BOC-44120",
-            paymentSlipUrl: sampleSlipData,
-            status: "PendingApproval",
-            createdAt: new Date(Date.now() - 7200000).toISOString()
-          },
-          {
-            bookingRef: "BK-LK-441092",
-            eventId: "ev-lk-002",
-            eventTitle: SAMPLE_EVENTS[1]?.title || "Colombo AI & Robotics Expo 2027",
-            attendeeId: "att-amanda-02",
-            attendeeName: "Amanda Silva",
-            attendeeEmail: "amanda.s@outlook.com",
-            attendeeNic: "199684729104",
-            attendeeContact: "+94 78 889 9123",
-            passCount: 1,
-            totalAmount: 15000,
-            bankName: "Hatton National Bank (HNB)",
-            bankRefNo: "TXN-HNB-11234",
-            paymentSlipUrl: sampleSlipData,
-            status: "Rejected",
-            rejectionReason: "Bank transfer reference number is unclear. Please attach an official e-banking PDF statement.",
-            createdAt: new Date(Date.now() - 14400000).toISOString()
-          }
-        ];
-        localStorage.setItem("ef_master_bookings", JSON.stringify(initial));
-        setMasterBookings(initial);
+      // Filter out any legacy sample bookings
+      const realBookings = savedBookings.filter(b =>
+        b.bookingRef !== "BK-LK-883011" &&
+        b.bookingRef !== "BK-LK-908214" &&
+        b.bookingRef !== "BK-LK-441092"
+      );
+      if (realBookings.length !== savedBookings.length) {
+        localStorage.setItem("ef_master_bookings", JSON.stringify(realBookings));
       }
+      setMasterBookings(realBookings);
     } catch {
       setMasterBookings([]);
     }

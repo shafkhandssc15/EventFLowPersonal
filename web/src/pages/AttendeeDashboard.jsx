@@ -27,15 +27,10 @@ export default function AttendeeDashboard() {
         return;
       }
 
-      const isDemoAttendee =
-        (user?.email && user.email.toLowerCase() === "attendee@demo.com") ||
-        user?.id === "00000000-0000-0000-0000-000000000001";
-
       let rawSaved = JSON.parse(localStorage.getItem(`ef_tickets_${userKey}`) || "[]");
 
-      // For non-demo attendees: strictly purge any demo/sample passes (BK-LK-908214, BK-LK-774102)
-      // that may have been previously dumped into this user's wallet by legacy code
-      if (!isDemoAttendee && rawSaved.length > 0) {
+      // Strictly purge any legacy demo/sample passes (BK-LK-908214, BK-LK-774102)
+      if (rawSaved.length > 0) {
         const cleaned = rawSaved.filter(t =>
           t.bookingRef !== "BK-LK-908214" &&
           t.bookingRef !== "BK-LK-774102" &&
@@ -104,57 +99,10 @@ export default function AttendeeDashboard() {
         }
       }
 
-      // ONLY for the pre-configured Demo Attendee ("attendee@demo.com"): seed initial demo tickets
-      if (isDemoAttendee) {
-        const sample10Passes = Array.from({ length: 10 }, (_, i) => ({
-          id: `tkt-lk-10p-${i + 1}`,
-          eventId: "ev-lk-001",
-          eventTitle: SAMPLE_EVENTS[0].title,
-          bookingRef: "BK-LK-908214",
-          tierName: i === 0 ? "VIP Summit All-Access" : "Standard Delegate Pass",
-          price: i === 0 ? 30000 : 15000,
-          location: SAMPLE_EVENTS[0].location,
-          startDate: SAMPLE_EVENTS[0].startDate,
-          holderName: i === 0 ? (user?.name || "Sam Taylor") : `Guest Delegate #${i + 1} (${["Kasun", "Niroshan", "Dilshan", "Chathuri", "Amara", "Praveen", "Kavindi", "Sahan", "Anuki"][i - 1]} Perera)`,
-          holderNic: i === 0 ? (user?.nic || "199878901234") : `199${(45678900 + i * 1234).toString().slice(0, 9)}`,
-          holderContact: i === 0 ? (user?.contact || "+94 71 987 6543") : `+94 77 ${100 + i * 11} ${2000 + i * 111}`,
-          qrCode: `EVENTFLOW-LK-SLAS27-${String(i + 1).padStart(2, "0")}-${(1234 + i * 77).toString(16).toUpperCase()}`,
-          status: "Confirmed",
-          passIndex: i + 1,
-          totalInBundle: 10,
-          image: SAMPLE_EVENTS[0].image
-        }));
-
-        const singlePass = {
-          id: "tkt-lk-single-02",
-          eventId: "ev-lk-002",
-          eventTitle: SAMPLE_EVENTS[1].title,
-          bookingRef: "BK-LK-774102",
-          tierName: "VIP Royal Balcony Lounge",
-          price: 20000,
-          location: SAMPLE_EVENTS[1].location,
-          startDate: SAMPLE_EVENTS[1].startDate,
-          holderName: user?.name || "Sam Taylor",
-          holderNic: user?.nic || "199878901234",
-          holderContact: user?.contact || "+94 71 987 6543",
-          qrCode: `EVENTFLOW-LK-CMF27-01-987A`,
-          status: "Confirmed",
-          passIndex: 1,
-          totalInBundle: 1,
-          image: SAMPLE_EVENTS[1].image
-        };
-
-        const initial = [...sample10Passes, singlePass];
-        localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(initial));
-        setTickets(initial);
-        setSelectedTicket(initial[0]);
-        setExpandedBookingId("BK-LK-908214");
-      } else {
-        // Any new attendee has an EMPTY wallet until they book passes
-        setTickets([]);
-        setSelectedTicket(null);
-        setExpandedBookingId(null);
-      }
+      // No passes found — clean empty wallet until attendee books passes
+      setTickets([]);
+      setSelectedTicket(null);
+      setExpandedBookingId(null);
     } catch {
       setTickets([]);
       setSelectedTicket(null);

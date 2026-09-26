@@ -7,61 +7,6 @@ import {
 } from "../components/Icons.jsx";
 import { supabase, saveSupabaseProfile } from "../api/supabase.js";
 
-const DEMO = [
-  {
-    email: "organizer@demo.com",
-    name: "Alex Chen",
-    role: "Organizer",
-    tag: "Event Organizer",
-    id: "00000000-0000-0000-0000-0000000000aa",
-    color: "#3b82f6",
-    glow: "rgba(59, 130, 246, 0.4)",
-    nic: "199234509876",
-    contact: "+94 77 123 4567",
-    address: "No 45, Alfred House Gardens, Colombo 03",
-    isApproved: true
-  },
-  {
-    email: "attendee@demo.com",
-    name: "Sam Taylor",
-    role: "Attendee",
-    tag: "VIP Attendee",
-    id: "00000000-0000-0000-0000-000000000001",
-    color: "#10b981",
-    glow: "rgba(16, 185, 129, 0.4)",
-    nic: "199878901234",
-    contact: "+94 71 987 6543",
-    address: "24/B, Peradeniya Road, Kandy",
-    isApproved: true
-  },
-  {
-    email: "vendor@demo.com",
-    name: "Jordan Lee",
-    role: "VendorVenueManager",
-    tag: "Venue Partner",
-    id: "00000000-0000-0000-0000-0000000000bb",
-    color: "#8b5cf6",
-    glow: "rgba(139, 92, 246, 0.4)",
-    nic: "198545607890",
-    contact: "+94 76 555 4321",
-    address: "88 Lighthouse Street, Fort, Galle",
-    isApproved: true
-  },
-  {
-    email: "admin@demo.com",
-    name: "Riley Park",
-    role: "Admin",
-    tag: "Platform Admin",
-    id: "00000000-0000-0000-0000-0000000000cc",
-    color: "#f59e0b",
-    glow: "rgba(245, 158, 11, 0.4)",
-    nic: "199012304567",
-    contact: "+94 11 234 5678",
-    address: "Level 14, World Trade Center, Colombo 01",
-    isApproved: true
-  },
-];
-
 const ROLE_OPTS = [
   {
     id: "Attendee",
@@ -87,6 +32,14 @@ const ROLE_OPTS = [
     color: "#8b5cf6",
     Icon: IcBuilding
   },
+  {
+    id: "Admin",
+    label: "Platform Admin",
+    sub: "Manage Approvals · DB & Audit",
+    badge: "System Admin",
+    color: "#f59e0b",
+    Icon: IcShield
+  }
 ];
 
 export default function AuthPage() {
@@ -137,7 +90,7 @@ export default function AuthPage() {
     try {
       const cleanEmail = email.trim().toLowerCase();
 
-      // Check pending approval
+      // 1. Check pending approval
       const pendingList = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
       const pendingUser = pendingList.find(p => p.email.toLowerCase() === cleanEmail && p.status !== "Approved");
       if (pendingUser) {
@@ -145,38 +98,29 @@ export default function AuthPage() {
         throw new Error(`Your ${pendingUser.role === 'VendorVenueManager' ? 'Vendor' : pendingUser.role} account is pending Admin Verification.`);
       }
 
-      // 1. Check Demo Accounts
-      const demoUser = DEMO.find(d => d.email.toLowerCase() === cleanEmail);
-      if (demoUser && (password === "demo" || password.length >= 4)) {
-        login({
-          id: demoUser.id,
-          name: demoUser.name,
-          role: demoUser.role,
-          email: demoUser.email,
-          nic: demoUser.nic,
-          contact: demoUser.contact,
-          address: demoUser.address
-        });
-        return;
-      }
-
-      // 2. Check approved custom users in localStorage
+      // Check approved custom users in localStorage
       const approvedUsers = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
       const approvedMatch = approvedUsers.find(u => u.email.toLowerCase() === cleanEmail);
-      if (approvedMatch && (password === "demo" || password.length >= 4)) {
-        login(approvedMatch);
-        return;
+
+      // 2. Authenticate with Supabase Auth
+      let sbUser = null;
+      let sbErrorMsg = null;
+      try {
+        const { data, error: sbError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: password
+        });
+        if (sbError) {
+          sbErrorMsg = sbError.message;
+        } else if (data?.user) {
+          sbUser = data.user;
+        }
+      } catch (err) {
+        sbErrorMsg = err.message;
       }
 
-      // 3. Supabase Auth
-      const { data, error: sbError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: password
-      });
-
-      if (!sbError && data?.user) {
-        const u = data.user;
-        const userMeta = u.user_metadata || {};
+      if (sbUser) {
+        const userMeta = sbUser.user_metadata || {};
         const userRole = userMeta.role || "Attendee";
 
         if (userRole !== "Attendee" && userRole !== "Admin" && !userMeta.isApproved && !approvedMatch) {
@@ -193,10 +137,10 @@ export default function AuthPage() {
         }
 
         login({
-          id: u.id,
+          id: sbUser.id,
           name: userMeta.name || cleanEmail.split("@")[0],
           role: userRole,
-          email: u.email,
+          email: sbUser.email,
           nic: userMeta.nic || "—",
           contact: userMeta.contact || "—",
           address: userMeta.address || "—"
@@ -204,21 +148,41 @@ export default function AuthPage() {
         return;
       }
 
-      // Quick fallback
-      if (password.length >= 4) {
+      // 3. Authenticate with registered users in localStorage (registered via Sign Up form)
+      const registeredUsers = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
+      const registeredMatch = registeredUsers.find(
+        u => u.email.toLowerCase() === cleanEmail && u.password === password
+      );
+
+      if (registeredMatch) {
+        const isApproved =
+          registeredMatch.role === "Attendee" ||
+          registeredMatch.role === "Admin" ||
+          registeredMatch.isApproved ||
+          (approvedMatch && approvedMatch.status === "Approved");
+
+        if (!isApproved) {
+          setPendingModal(registeredMatch);
+          throw new Error(`Your ${registeredMatch.role} account is pending Admin Verification.`);
+        }
+
         login({
-          id: crypto.randomUUID(),
-          name: cleanEmail.split("@")[0].replace(".", " "),
-          role: role,
-          email: cleanEmail,
-          nic: "199512345678",
-          contact: "+94 77 123 4567",
-          address: "Colombo, Sri Lanka"
+          id: registeredMatch.id,
+          name: registeredMatch.name,
+          role: registeredMatch.role,
+          email: registeredMatch.email,
+          nic: registeredMatch.nic,
+          contact: registeredMatch.contact,
+          address: registeredMatch.address
         });
         return;
       }
 
-      throw new Error(sbError?.message || "Invalid credentials. Please verify your details.");
+      // 4. No valid account found — reject login!
+      throw new Error(
+        sbErrorMsg ||
+        "Invalid email or password. If you don't have an account yet, please click 'Create Account' above to sign up."
+      );
     } catch (err) {
       setError(err.message || "Sign in failed.");
     } finally {
@@ -247,84 +211,60 @@ export default function AuthPage() {
       const newUserId = crypto.randomUUID();
       const formattedId = `${idType}: ${nic.trim()}`;
 
-      const requiresAdminApproval = (role === "Organizer" || role === "VendorVenueManager");
-
-      if (requiresAdminApproval) {
-        const approvalRequest = {
-          id: `req-${Date.now()}`,
-          userId: newUserId,
-          name: name.trim(),
-          email: cleanEmail,
-          role: role,
-          idType: idType,
-          nic: formattedId,
-          contact: contact.trim(),
-          address: address.trim(),
-          organization: organization.trim() || `${name.trim()} Org`,
-          status: "PendingAdminApproval",
-          submittedAt: new Date().toISOString()
-        };
-
-        const existingReqs = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-        localStorage.setItem("ef_pending_approvals", JSON.stringify([approvalRequest, ...existingReqs.filter(r => r.email !== cleanEmail)]));
-
-        try {
-          await supabase.auth.signUp({
-            email: cleanEmail,
-            password: password,
-            options: {
-              data: {
-                name: name.trim(),
-                role: role,
-                idType: idType,
-                nic: formattedId,
-                contact: contact.trim(),
-                address: address.trim(),
-                isApproved: false
-              }
-            }
-          });
-        } catch {}
-
-        setPendingModal(approvalRequest);
-        setMode("login");
+      // Check if already registered
+      const registeredUsers = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
+      if (registeredUsers.some(u => u.email.toLowerCase() === cleanEmail)) {
+        setError("An account with this email already exists. Please sign in instead.");
+        setBusy(false);
         return;
       }
 
-      // Attendee: Instant auto-approval
-      const { data } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: password,
-        options: {
-          data: {
-            name: name.trim(),
-            role: "Attendee",
-            idType: idType,
-            nic: formattedId,
-            contact: contact.trim(),
-            address: address.trim(),
-            isApproved: true
-          }
-        }
-      });
+      const requiresAdminApproval = (role === "Organizer" || role === "VendorVenueManager");
 
       const newUser = {
-        id: data?.user?.id || newUserId,
+        id: newUserId,
         name: name.trim(),
-        role: "Attendee",
+        role: role,
         email: cleanEmail,
+        password: password,
         idType: idType,
         nic: formattedId,
         contact: contact.trim(),
         address: address.trim(),
-        isApproved: true
+        organization: organization.trim() || `${name.trim()} Org`,
+        isApproved: !requiresAdminApproval,
+        createdAt: new Date().toISOString()
       };
+
+      // Save user to registered accounts
+      localStorage.setItem("ef_registered_users", JSON.stringify([newUser, ...registeredUsers]));
+
+      // Create in Supabase Auth
+      try {
+        await supabase.auth.signUp({
+          email: cleanEmail,
+          password: password,
+          options: {
+            data: {
+              name: newUser.name,
+              role: newUser.role,
+              idType: newUser.idType,
+              nic: newUser.nic,
+              contact: newUser.contact,
+              address: newUser.address,
+              isApproved: !requiresAdminApproval
+            }
+          }
+        });
+      } catch (sbErr) {
+        console.warn("Supabase signup sync:", sbErr);
+      }
 
       try {
         await saveSupabaseProfile({
           id: newUser.id,
           name: newUser.name,
-          role: "Attendee",
+          role: newUser.role,
           email: newUser.email,
           nic: newUser.nic,
           contact: newUser.contact,
@@ -333,20 +273,37 @@ export default function AuthPage() {
         });
       } catch {}
 
+      if (requiresAdminApproval) {
+        const approvalRequest = {
+          id: `req-${Date.now()}`,
+          userId: newUserId,
+          name: newUser.name,
+          email: cleanEmail,
+          role: role,
+          idType: idType,
+          nic: formattedId,
+          contact: newUser.contact,
+          address: newUser.address,
+          organization: newUser.organization,
+          status: "PendingAdminApproval",
+          submittedAt: new Date().toISOString()
+        };
+
+        const existingReqs = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
+        localStorage.setItem("ef_pending_approvals", JSON.stringify([approvalRequest, ...existingReqs.filter(r => r.email !== cleanEmail)]));
+
+        setPendingModal(approvalRequest);
+        setMode("login");
+        return;
+      }
+
+      // Attendee or Admin: Immediate access
       login(newUser);
     } catch (err) {
       setError(err.message || "Registration encountered an issue.");
     } finally {
       setBusy(false);
     }
-  }
-
-  function fillDemo(u) {
-    setEmail(u.email);
-    setPass("demo");
-    setRole(u.role);
-    setMode("login");
-    setError("");
   }
 
   return (
@@ -577,7 +534,7 @@ export default function AuthPage() {
                   <input
                     className="form-input"
                     type="email"
-                    placeholder="e.g. attendee@demo.com"
+                    placeholder="name@example.com"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     required
@@ -592,7 +549,7 @@ export default function AuthPage() {
                   <input
                     className="form-input"
                     type="password"
-                    placeholder="Enter password or 'demo'"
+                    placeholder="Enter your password"
                     value={password}
                     onChange={e => setPass(e.target.value)}
                     required
@@ -624,7 +581,7 @@ export default function AuthPage() {
               {/* Role Selection */}
               <div>
                 <label className="form-label" style={{ fontSize: 11, marginBottom: 6, display: "block" }}>Select Account Type *</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {ROLE_OPTS.map(r => {
                     const isSelected = role === r.id;
                     const Icon = r.Icon;
@@ -795,67 +752,11 @@ export default function AuthPage() {
             </form>
           )}
 
-          {/* ── 1-Click Pre-Approved Demo Logins (Clean 3D Pill Cards) ── */}
-          <div style={{ marginTop: 22 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{ height: "1px", flex: 1, background: "rgba(255,255,255,0.08)" }} />
-              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--c-text-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                1-Click Instant Demo Login
-              </span>
-              <div style={{ height: "1px", flex: 1, background: "rgba(255,255,255,0.08)" }} />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {DEMO.map(u => {
-                const initials = u.name.split(" ").map(w => w[0]).join("");
-                return (
-                  <button
-                    key={u.email}
-                    type="button"
-                    className="demo-pill-btn"
-                    onClick={() => fillDemo(u)}
-                    style={{
-                      background: "rgba(255, 255, 255, 0.025)",
-                      border: "1px solid rgba(255, 255, 255, 0.08)",
-                      borderRadius: "12px",
-                      padding: "8px 10px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      textAlign: "left",
-                      cursor: "pointer"
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: "8px",
-                        background: u.color,
-                        boxShadow: `0 0 10px ${u.glow}`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#ffffff",
-                        fontSize: 10,
-                        fontWeight: 900,
-                        flexShrink: 0
-                      }}
-                    >
-                      {initials}
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {u.name}
-                      </div>
-                      <div style={{ fontSize: 10, color: "var(--c-text-3)", display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: u.color }} />
-                        {u.tag}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+          {/* ── Security & Authentication Notice ── */}
+          <div style={{ marginTop: 22, padding: "12px 14px", borderRadius: "10px", background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.18)", display: "flex", alignItems: "center", gap: 10 }}>
+            <IcShield style={{ width: 18, height: 18, color: "#60a5fa", flexShrink: 0 }} />
+            <div style={{ fontSize: 11, color: "var(--c-text-2)", lineHeight: 1.4 }}>
+              Protected by encrypted authentication. If you are new to EventFlow, click <strong style={{ color: "#93c5fd" }}>Create Account</strong> above to register.
             </div>
           </div>
         </div>

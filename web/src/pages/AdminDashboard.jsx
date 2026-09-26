@@ -7,18 +7,27 @@ import {
 import { seedSupabaseDatabase, SUPABASE_URL, formatLKR } from "../api/supabase.js";
 import { api } from "../api/client.js";
 
-const INITIAL_USERS = [
-  { id: "00000000-0000-0000-0000-0000000000aa", name: "Alex Chen", email: "organizer@demo.com", role: "Organizer", nic: "199234509876", contact: "+94 77 123 4567", address: "No 45, Alfred House Gardens, Colombo 03", status: "Active" },
-  { id: "00000000-0000-0000-0000-000000000001", name: "Sam Taylor", email: "attendee@demo.com", role: "Attendee", nic: "199878901234", contact: "+94 71 987 6543", address: "24/B, Peradeniya Road, Kandy", status: "Active" },
-  { id: "00000000-0000-0000-0000-0000000000bb", name: "Jordan Lee", email: "vendor@demo.com", role: "VendorVenueManager", nic: "198545607890", contact: "+94 76 555 4321", address: "88 Lighthouse Street, Fort, Galle", status: "Active" },
-  { id: "00000000-0000-0000-0000-0000000000cc", name: "Riley Park", email: "admin@demo.com", role: "Admin", nic: "199012304567", contact: "+94 11 234 5678", address: "Level 14, World Trade Center, Colombo 01", status: "SuperAdmin" },
-];
+function getRegisteredUsers() {
+  try {
+    const reg = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
+    const approved = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
+    const merged = [...reg];
+    approved.forEach(a => {
+      if (!merged.some(m => m.email.toLowerCase() === a.email.toLowerCase())) {
+        merged.push({ ...a, status: "Active" });
+      }
+    });
+    return merged.map(u => ({ ...u, status: u.status || "Active" }));
+  } catch {
+    return [];
+  }
+}
 
 export default function AdminDashboard() {
   const { user, login } = useAuth();
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
-  const [users, setUsers] = useState(INITIAL_USERS);
+  const [users, setUsers] = useState(getRegisteredUsers);
   const [eventsCount, setEventsCount] = useState(6);
   const [venuesCount, setVenuesCount] = useState(6);
   const [promotionNotice, setPromotionNotice] = useState(null);
@@ -29,40 +38,15 @@ export default function AdminDashboard() {
     try { return JSON.parse(localStorage.getItem("ef_audit_log") || "[]"); } catch { return []; }
   });
 
-  // Pending Approvals Queue
+  // Pending Approvals Queue (only real requests from organizers and vendors)
   const [pendingApprovals, setPendingApprovals] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-      if (saved.length > 0) return saved;
-      // Default initial pending requests for testing
-      const defaults = [
-        {
-          id: "req-lk-101",
-          name: "Ruwan Wickramasinghe",
-          email: "ruwan.events@colombo.lk",
-          role: "Organizer",
-          nic: "198823450912",
-          contact: "+94 77 889 9112",
-          address: "15/4, Nawala Road, Rajagiriya",
-          organization: "Ceylon Tech & Creative Expos",
-          status: "PendingAdminApproval",
-          submittedAt: new Date(Date.now() - 3600000 * 2).toISOString()
-        },
-        {
-          id: "req-lk-102",
-          name: "Chathuri Jayasundara",
-          email: "chathuri@soundcraft.lk",
-          role: "VendorVenueManager",
-          nic: "199367891234",
-          contact: "+94 71 445 6677",
-          address: "No 72, Kandy Road, Kiribathgoda",
-          organization: "SoundCraft Pro A/V Sri Lanka",
-          status: "PendingAdminApproval",
-          submittedAt: new Date(Date.now() - 3600000 * 5).toISOString()
-        }
-      ];
-      localStorage.setItem("ef_pending_approvals", JSON.stringify(defaults));
-      return defaults;
+      const real = saved.filter(r => r.id !== "req-lk-101" && r.id !== "req-lk-102");
+      if (real.length !== saved.length) {
+        localStorage.setItem("ef_pending_approvals", JSON.stringify(real));
+      }
+      return real;
     } catch {
       return [];
     }
