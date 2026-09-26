@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api/client.js";
+import { useRealtime } from "../context/RealtimeContext.jsx";
 import { IcSearch, IcCalendar, IcMapPin, IcUsers, IcCompass, IcGrid } from "../components/Icons.jsx";
-import { SAMPLE_EVENTS, SAMPLE_VENUES, FALLBACK_IMAGE } from "../api/supabase.js";
+import { FALLBACK_IMAGE } from "../api/supabase.js";
 import VenueMap from "../components/VenueMap.jsx";
 
 const CATS = ["All", "Technology", "Music", "Sports", "Art", "Food", "Business"];
@@ -16,35 +16,23 @@ const STATUS_MAP = {
 };
 
 export default function EventsList() {
-  const [events, setEvents] = useState([]);
+  // ── Realtime: events come from central Supabase subscription ───────────────
+  const { events: allEvents, connected, lastUpdate } = useRealtime();
   const [cat, setCat] = useState("");
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("grid");
 
-  useEffect(() => {
-    setLoading(true);
-    api.listEvents(cat ? { category: cat } : {})
-      .then(res => {
-        const items = res.items || res || [];
-        if (items.length > 0) {
-          setEvents(items);
-        } else {
-          setEvents(cat ? SAMPLE_EVENTS.filter(e => e.category === cat) : SAMPLE_EVENTS);
-        }
-      })
-      .catch(() => {
-        setEvents(cat ? SAMPLE_EVENTS.filter(e => e.category === cat) : SAMPLE_EVENTS);
-      })
-      .finally(() => setLoading(false));
-  }, [cat]);
+  // Category + search filter applied on the live events array
+  const filtered = allEvents
+    .filter(ev => !cat || ev.category === cat)
+    .filter(ev =>
+      !search ||
+      ev.title?.toLowerCase().includes(search.toLowerCase()) ||
+      ev.location?.toLowerCase().includes(search.toLowerCase()) ||
+      ev.category?.toLowerCase().includes(search.toLowerCase())
+    );
 
-  const filtered = events.filter(ev =>
-    !search ||
-    ev.title?.toLowerCase().includes(search.toLowerCase()) ||
-    ev.location?.toLowerCase().includes(search.toLowerCase()) ||
-    ev.category?.toLowerCase().includes(search.toLowerCase())
-  );
+  const loading = allEvents.length === 0 && !lastUpdate;
 
   return (
     <>

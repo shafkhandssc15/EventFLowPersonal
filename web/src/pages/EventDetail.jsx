@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useRealtime } from "../context/RealtimeContext.jsx";
 import {
   IcCalendar, IcMapPin, IcUsers, IcArrowLeft, IcClock, IcTicket,
   IcCheckCircle, IcCompass, IcPlus, IcX, IcUser, IcShield
@@ -23,6 +24,9 @@ export default function EventDetail() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // ── Primary source: live events from Realtime context ──────────────────────
+  const { events: liveEvents } = useRealtime();
+
   const [event, setEvent] = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
   const [bookingModal, setBookingModal] = useState(false);
@@ -37,14 +41,18 @@ export default function EventDetail() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  // Sync event from Realtime context whenever the live events list changes
   useEffect(() => {
+    const liveEvent = liveEvents.find(e => e.id === id);
+    if (liveEvent) {
+      setEvent(liveEvent);
+      return;
+    }
+    // Fallback: check localStorage, then API, then SAMPLE_EVENTS
     try {
       const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
       const foundSaved = saved.find(e => e.id === id);
-      if (foundSaved) {
-        setEvent(foundSaved);
-        return;
-      }
+      if (foundSaved) { setEvent(foundSaved); return; }
     } catch {}
 
     api.getEvent(id)
@@ -53,7 +61,7 @@ export default function EventDetail() {
         const found = SAMPLE_EVENTS.find(e => e.id === id) || SAMPLE_EVENTS[0];
         setEvent(found);
       });
-  }, [id]);
+  }, [id, liveEvents]);
 
   // Open booking modal for a tier
   function openBooking(tier) {

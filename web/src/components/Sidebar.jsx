@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useRealtime } from "../context/RealtimeContext.jsx";
 import {
   IcHome, IcLayout, IcCpu, IcCheckCircle, IcBuilding,
   IcLogOut, IcTicket, IcDatabase, IcChevronLeft, IcChevronRight, IcCompass,
@@ -26,6 +27,7 @@ const ROLE_COLOR = {
 
 export default function Sidebar({ collapsed, setCollapsed }) {
   const { user, logout, login } = useAuth();
+  const { connected } = useRealtime();
   const navigate = useNavigate();
 
   const [theme, setTheme] = useState(() => localStorage.getItem("ef_theme") || "dark");
@@ -140,7 +142,28 @@ export default function Sidebar({ collapsed, setCollapsed }) {
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          {!collapsed && <span className="sb-logo-text">Eventflow</span>}
+          {!collapsed && (
+            <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+              <span className="sb-logo-text">Eventflow</span>
+              {/* Supabase Realtime connection badge */}
+              <span title={connected ? "Supabase Realtime: Live" : "Reconnecting to Supabase..."} style={{
+                display: "flex", alignItems: "center", gap: 4,
+                background: connected ? "rgba(16,185,129,.15)" : "rgba(245,158,11,.15)",
+                border: `1px solid ${connected ? "rgba(16,185,129,.35)" : "rgba(245,158,11,.35)"}`,
+                borderRadius: 20, padding: "1px 7px", flexShrink: 0,
+              }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                  background: connected ? "#10b981" : "#f59e0b",
+                  boxShadow: `0 0 ${connected ? "6px #10b981" : "6px #f59e0b"}`,
+                  animation: connected ? "pulse 2s infinite" : "none",
+                }} />
+                <span style={{ fontSize: 10, fontWeight: 600, color: connected ? "#10b981" : "#f59e0b", letterSpacing: "0.02em" }}>
+                  {connected ? "LIVE" : "..."}
+                </span>
+              </span>
+            </span>
+          )}
         </div>
 
         <button

@@ -1376,4 +1376,16 @@ select.form-input option { background: var(--c-bg-2); }
   }
 }
 
+/* ── Realtime animations ── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+
 

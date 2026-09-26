@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useRealtime } from "../context/RealtimeContext.jsx";
 import {
   IcPlus, IcCalendar, IcMapPin, IcUsers, IcEye, IcCheck,
   IcAlert, IcBuilding, IcShield, IcCompass, IcMail, IcImage,
   IcCheckCircle, IcClock, IcX
 } from "../components/Icons.jsx";
-import { SAMPLE_EVENTS, SAMPLE_VENUES, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { SAMPLE_VENUES, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 import ImageUploader from "../components/ImageUploader.jsx";
 import BookingChatDrawer from "../components/BookingChatDrawer.jsx";
 
@@ -25,10 +26,13 @@ const STATUS_BADGE = {
 
 export default function OrganizerDashboard() {
   const { user } = useAuth();
-  const [events, setEvents]           = useState([]);
+
+  // ── Realtime: events & venues from central Supabase subscription ───────────
+  const { events, venues: realtimeVenues, upsertEvent, deleteEvent: rtDeleteEvent, connected } = useRealtime();
+
   const [registeredVenues, setRegisteredVenues] = useState([]);
   const [selectedVenue, setSelectedVenue] = useState(null);
-  const [loading, setLoading]         = useState(true);
+  const [loading, setLoading]         = useState(false);
   const [showForm, setShowForm]       = useState(false);
   const [success, setSuccess]         = useState(null);
   const [error, setError]             = useState(null);
@@ -61,11 +65,12 @@ export default function OrganizerDashboard() {
   function loadAll() {
     setLoading(true);
 
-    // 1. Load Registered Venues
-    let venueList = SAMPLE_VENUES;
+    // 1. Load Registered Venues — prefer Realtime venues, fall back to localStorage + SAMPLE_VENUES
+    const rtVenues = realtimeVenues.length > 0 ? realtimeVenues : null;
+    let venueList = rtVenues || SAMPLE_VENUES;
     try {
       const custom = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-      venueList = [...custom, ...SAMPLE_VENUES.filter(sv => !custom.some(cv => cv.id === sv.id))];
+      venueList = rtVenues || [...custom, ...SAMPLE_VENUES.filter(sv => !custom.some(cv => cv.id === sv.id))];
     } catch {}
     setRegisteredVenues(venueList);
 
@@ -92,30 +97,8 @@ export default function OrganizerDashboard() {
       }
     }
 
-    // 3. Load Events (Priority: localStorage custom events -> API -> SAMPLE_EVENTS)
-    try {
-      const savedCustom = JSON.parse(localStorage.getItem("ef_events") || "[]");
-      if (savedCustom.length > 0) {
-        setEvents(savedCustom);
-        setLoading(false);
-      } else {
-        api.listEvents()
-          .then(r => {
-            const items = r.items || r || [];
-            const evs = items.length > 0 ? items : SAMPLE_EVENTS;
-            setEvents(evs);
-            localStorage.setItem("ef_events", JSON.stringify(evs));
-          })
-          .catch(() => {
-            setEvents(SAMPLE_EVENTS);
-            localStorage.setItem("ef_events", JSON.stringify(SAMPLE_EVENTS));
-          })
-          .finally(() => setLoading(false));
-      }
-    } catch {
-      setEvents(SAMPLE_EVENTS);
-      setLoading(false);
-    }
+    // 3. Events are live via useRealtime() — no fetch needed here
+    setLoading(false);
 
     // 4. Load Master Bookings for Slip Verification
     try {
@@ -362,20 +345,18 @@ export default function OrganizerDashboard() {
         ]
       };
 
+      // Use the Realtime mutator — writes to Supabase API + updates state + broadcasts to all clients
+      const { event: savedEvent, error: apiError } = await upsertEvent(newEvent, !!editingEventId);
+
+      if (apiError) {
+        console.warn("[OrganizerDashboard] API error (saved locally):", apiError);
+      }
+
       if (editingEventId) {
-        api.updateEvent(editingEventId, newEvent).catch(() => {});
-        const updatedEvents = events.map(e => e.id === editingEventId ? { ...e, ...newEvent } : e);
-        setEvents(updatedEvents);
-        localStorage.setItem("ef_events", JSON.stringify(updatedEvents));
-        window.dispatchEvent(new Event("storage"));
-        setSuccess(`Event "${newEvent.title}" successfully updated!`);
+        setSuccess(`Event "${savedEvent.title}" successfully updated!`);
       } else {
-        api.createEvent(newEvent).catch(() => {});
-        const updatedEvents = [newEvent, ...events];
-        setEvents(updatedEvents);
-        localStorage.setItem("ef_events", JSON.stringify(updatedEvents));
         window.dispatchEvent(new Event("storage"));
-        setSuccess(`Event "${newEvent.title}" successfully hosted at registered venue "${selectedVenue.name}"!`);
+        setSuccess(`Event "${savedEvent.title}" successfully hosted at registered venue "${selectedVenue.name}"! ${apiError ? "(saved locally – backend offline)" : "Saved to Supabase ✓"}`);
       }
 
       setShowForm(false);

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
+import { RealtimeProvider } from "./context/RealtimeContext.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import AuthPage from "./pages/AuthPage.jsx";
 import EventsList from "./pages/EventsList.jsx";
@@ -26,22 +27,25 @@ function ProtectedLayout() {
   if (!user) return <Navigate to="/login" replace />;
 
   return (
-    <div className={`layout ${collapsed ? "sidebar-collapsed" : ""}`}>
-      <Sidebar collapsed={collapsed} setCollapsed={handleSetCollapsed} />
-      <main className={`main ${collapsed ? "main-expanded" : ""}`}>
-        <Routes>
-          <Route path="/" element={<EventsList />} />
-          <Route path="/events/:id" element={<EventDetail />} />
-          <Route path="/attendee" element={<AttendeeDashboard />} />
-          <Route path="/organizer" element={<OrganizerDashboard />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/vendor" element={<VendorDashboard />} />
-          <Route path="/agent" element={<AgentWorkflowRunner />} />
-          <Route path="/approvals" element={user?.role === "Admin" ? <ApprovalQueue /> : <Navigate to="/" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
-    </div>
+    // RealtimeProvider lives here so it only starts when a user is logged in
+    <RealtimeProvider>
+      <div className={`layout ${collapsed ? "sidebar-collapsed" : ""}`}>
+        <Sidebar collapsed={collapsed} setCollapsed={handleSetCollapsed} />
+        <main className={`main ${collapsed ? "main-expanded" : ""}`}>
+          <Routes>
+            <Route path="/" element={<EventsList />} />
+            <Route path="/events/:id" element={<EventDetail />} />
+            <Route path="/attendee" element={<AttendeeDashboard />} />
+            <Route path="/organizer" element={<OrganizerDashboard />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/vendor" element={<VendorDashboard />} />
+            <Route path="/agent" element={<AgentWorkflowRunner />} />
+            <Route path="/approvals" element={user?.role === "Admin" ? <ApprovalQueue /> : <Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </RealtimeProvider>
   );
 }
 
