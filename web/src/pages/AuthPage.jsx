@@ -34,17 +34,6 @@ const ROLE_OPTS = [
   }
 ];
 
-// Predefined seed credentials for instant zero-friction verification
-const KNOWN_ACCOUNT_PASSWORDS = {
-  "admin.eventflow@gmail.com": "Admin@123456",
-  "organizer.eventflow@gmail.com": "Organizer@123456",
-  "vendor.eventflow@gmail.com": "Vendor@123456",
-  "admin@demo.com": "demo",
-  "attendee@demo.com": "demo",
-  "organizer@demo.com": "demo",
-  "vendor@demo.com": "demo",
-  "buddhi@gmail.com": "buddhi1234"
-};
 
 // ASP.NET Identity v3 PBKDF2 HMAC-SHA512 password hash verifier
 async function verifyAspNetHash(hashedPassword, plainPassword) {
@@ -224,11 +213,10 @@ export default function AuthPage() {
           const uRow = dbUsers[0];
           const storedHash = uRow.PasswordHash || uRow.password || "";
 
-          // Check direct match, known credentials dictionary, or PBKDF2 hash
+          // Verify password directly against the Supabase Users record (plaintext or PBKDF2 hash)
           const isPasswordValid =
             storedHash === password ||
             uRow.password === password ||
-            (KNOWN_ACCOUNT_PASSWORDS[cleanEmail] && KNOWN_ACCOUNT_PASSWORDS[cleanEmail] === password) ||
             (await verifyAspNetHash(storedHash, password));
 
           if (isPasswordValid) {
@@ -773,88 +761,6 @@ export default function AuthPage() {
               >
                 {busy ? "Authenticating…" : "Sign In to EventFlow"}
               </button>
-
-              {/* Quick Fill Credentials Bar */}
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--c-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span>Quick-Fill Live Accounts</span>
-                  <span style={{ fontSize: 10, color: "#38bdf8", fontWeight: 600 }}>Click to fill &amp; test</span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-                  <button
-                    type="button"
-                    onClick={() => { setEmail("admin.eventflow@gmail.com"); setPass("Admin@123456"); }}
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: "8px",
-                      background: "rgba(239, 68, 68, 0.1)",
-                      border: "1px solid rgba(239, 68, 68, 0.3)",
-                      color: "#fca5a5",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      textAlign: "left"
-                    }}
-                  >
-                    <div style={{ color: "#ef4444", fontWeight: 800 }}>👑 Platform Admin</div>
-                    <div style={{ fontSize: 10, color: "var(--c-text-2)", marginTop: 2 }}>admin.eventflow@...</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setEmail("organizer.eventflow@gmail.com"); setPass("Organizer@123456"); }}
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: "8px",
-                      background: "rgba(59, 130, 246, 0.1)",
-                      border: "1px solid rgba(59, 130, 246, 0.3)",
-                      color: "#93c5fd",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      textAlign: "left"
-                    }}
-                  >
-                    <div style={{ color: "#3b82f6", fontWeight: 800 }}>🎪 Lead Organizer</div>
-                    <div style={{ fontSize: 10, color: "var(--c-text-2)", marginTop: 2 }}>organizer.eventflow@...</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setEmail("vendor.eventflow@gmail.com"); setPass("Vendor@123456"); }}
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: "8px",
-                      background: "rgba(139, 92, 246, 0.1)",
-                      border: "1px solid rgba(139, 92, 246, 0.3)",
-                      color: "#c4b5fd",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      textAlign: "left"
-                    }}
-                  >
-                    <div style={{ color: "#8b5cf6", fontWeight: 800 }}>🏨 Venue Partner</div>
-                    <div style={{ fontSize: 10, color: "var(--c-text-2)", marginTop: 2 }}>vendor.eventflow@...</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setEmail("buddhi@gmail.com"); setPass("buddhi1234"); }}
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: "8px",
-                      background: "rgba(16, 185, 129, 0.1)",
-                      border: "1px solid rgba(16, 185, 129, 0.3)",
-                      color: "#6ee7b7",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      textAlign: "left"
-                    }}
-                  >
-                    <div style={{ color: "#10b981", fontWeight: 800 }}>🎟️ Attendee (Buddhi)</div>
-                    <div style={{ fontSize: 10, color: "var(--c-text-2)", marginTop: 2 }}>buddhi@gmail.com</div>
-                  </button>
-                </div>
-              </div>
             </form>
           ) : (
             /* ── Sign Up Form ── */
