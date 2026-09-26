@@ -31,14 +31,6 @@ const ROLE_OPTS = [
     badge: "Admin Verification",
     color: "#8b5cf6",
     Icon: IcBuilding
-  },
-  {
-    id: "Admin",
-    label: "Platform Admin",
-    sub: "Manage Approvals · DB & Audit",
-    badge: "System Admin",
-    color: "#f59e0b",
-    Icon: IcShield
   }
 ];
 
@@ -159,10 +151,44 @@ export default function AuthPage() {
         if (!dbErr && dbUsers && dbUsers.length > 0) {
           const uRow = dbUsers[0];
           if (uRow.PasswordHash === password || uRow.password === password) {
+            const userRole = uRow.Role || uRow.role || "Attendee";
+
+            // If account is Admin, only the master Admin or admin-approved user can log in
+            if (userRole === "Admin" && cleanEmail !== "admin.eventflow@gmail.com") {
+              const isAdminApproved = approvedMatch?.isApproved || approvedMatch?.status === "Active" || uRow.IsApproved === true;
+              if (!isAdminApproved) {
+                setPendingModal({
+                  name: uRow.Name || cleanEmail,
+                  email: cleanEmail,
+                  role: "Admin",
+                  nic: "—",
+                  contact: "—",
+                  submittedAt: new Date().toISOString()
+                });
+                throw new Error("Admin accounts require approval by the Master Administrator before access is granted.");
+              }
+            }
+
+            if (userRole === "Organizer" || userRole === "VendorVenueManager") {
+              const isLead = cleanEmail === "organizer.eventflow@gmail.com" || cleanEmail === "vendor.eventflow@gmail.com";
+              const isApproved = isLead || (approvedMatch && approvedMatch.isApproved) || uRow.IsApproved === true;
+              if (!isApproved) {
+                setPendingModal({
+                  name: uRow.Name || cleanEmail,
+                  email: cleanEmail,
+                  role: userRole,
+                  nic: "—",
+                  contact: "—",
+                  submittedAt: new Date().toISOString()
+                });
+                throw new Error(`Your ${userRole} account is pending Admin Verification.`);
+              }
+            }
+
             login({
               id: uRow.Id || uRow.id,
-              name: uRow.Name || uRow.name || "Administrator",
-              role: uRow.Role || uRow.role || "Admin",
+              name: uRow.Name || uRow.name || (userRole === "Admin" ? "Administrator" : "User"),
+              role: userRole,
               email: uRow.Email || uRow.email,
               nic: "199012304567",
               contact: "+94 11 234 5678",
@@ -174,7 +200,7 @@ export default function AuthPage() {
           }
         }
       } catch (err) {
-        if (err.message === "Incorrect password for this account.") throw err;
+        if (err.message === "Incorrect password for this account." || err.message.includes("pending") || err.message.includes("Admin accounts require")) throw err;
       }
 
       // 4. Authenticate with registered users in localStorage (registered via Sign Up form)
@@ -186,7 +212,7 @@ export default function AuthPage() {
       if (registeredMatch) {
         const isApproved =
           registeredMatch.role === "Attendee" ||
-          registeredMatch.role === "Admin" ||
+          (cleanEmail === "admin.eventflow@gmail.com") ||
           registeredMatch.isApproved ||
           (approvedMatch && approvedMatch.status === "Approved");
 

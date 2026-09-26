@@ -4,7 +4,7 @@ import {
   IcDatabase, IcCheckCircle, IcUsers, IcBuilding, IcTicket,
   IcCheck, IcRefresh, IcShield, IcZap, IcPlus, IcUser, IcX
 } from "../components/Icons.jsx";
-import { seedSupabaseDatabase, SUPABASE_URL, formatLKR } from "../api/supabase.js";
+import { supabase, seedSupabaseDatabase, SUPABASE_URL, formatLKR } from "../api/supabase.js";
 import { api } from "../api/client.js";
 
 function getRegisteredUsers() {
@@ -144,6 +144,11 @@ export default function AdminDashboard() {
     const approvedList = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
     localStorage.setItem("ef_approved_users", JSON.stringify([newActiveUser, ...approvedList.filter(u => u.email !== req.email)]));
 
+    // Also sync approval status to Supabase Users table
+    try {
+      supabase.from("Users").update({ Role: req.role, UpdatedAt: new Date().toISOString() }).ilike("Email", req.email).then(() => {});
+    } catch (err) {}
+
     setPromotionNotice(`✓ Application for "${req.name}" (${req.role === 'VendorVenueManager' ? 'Vendor / Venue' : req.role}) APPROVED & ACTIVATED. They can now sign in.`);
   }
 
@@ -265,6 +270,24 @@ export default function AdminDashboard() {
     }
     const targetUser = users.find(u => u.id === userId);
     setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+
+    // Update ef_approved_users
+    const approvedList = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
+    const existing = approvedList.find(u => u.id === userId || (targetUser && u.email?.toLowerCase() === targetUser.email?.toLowerCase()));
+    if (existing) {
+      existing.role = newRole;
+      existing.isApproved = true;
+      localStorage.setItem("ef_approved_users", JSON.stringify(approvedList));
+    } else if (targetUser) {
+      approvedList.push({ ...targetUser, role: newRole, isApproved: true });
+      localStorage.setItem("ef_approved_users", JSON.stringify(approvedList));
+    }
+
+    // Sync to Supabase Users table
+    try {
+      supabase.from("Users").update({ Role: newRole, UpdatedAt: new Date().toISOString() }).eq("Id", userId).then(() => {});
+    } catch {}
+
     setPromotionNotice(`User "${targetUser?.name || 'User'}" promoted to "${newRole === 'VendorVenueManager' ? 'Vendor / Venue' : newRole}".`);
     addAuditEntry("ROLE_CHANGE", `Changed role of ${targetUser?.name} to ${newRole}`);
     if (user?.id === userId) {
@@ -319,6 +342,21 @@ export default function AdminDashboard() {
 
     const approvedList = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
     localStorage.setItem("ef_approved_users", JSON.stringify([createdUser, ...approvedList]));
+
+    // Sync directly to Supabase Users table
+    try {
+      supabase.from("Users").upsert({
+        Id: createdUser.id,
+        Name: createdUser.name,
+        Email: createdUser.email,
+        PasswordHash: "Admin@123456",
+        Role: createdUser.role,
+        CreatedAt: new Date().toISOString(),
+        UpdatedAt: new Date().toISOString()
+      }).then(() => {});
+    } catch (sbErr) {
+      console.warn("Supabase user creation warning:", sbErr);
+    }
 
     setPromotionNotice(`New verified user "${createdUser.name}" created with role "${createdUser.role}".`);
     setShowAddUserModal(false);
