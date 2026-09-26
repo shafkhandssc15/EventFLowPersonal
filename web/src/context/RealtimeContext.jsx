@@ -88,13 +88,31 @@ export function RealtimeProvider({ children }) {
 
   // ─── Initial data load ─────────────────────────────────────────────────────
   const loadInitialData = useCallback(async () => {
-    // Events
+    // 1. Events — Fetch directly from Supabase first, fallback to API and localStorage
     try {
-      const res = await api.listEvents({ pageSize: 200 });
-      const items = res?.items ?? res ?? [];
-      const mapped = items.length > 0 ? items.map(mapEvent) : SAMPLE_EVENTS;
-      setEvents(mapped);
-      localStorage.setItem("ef_events", JSON.stringify(mapped));
+      const { data: dbEvents, error: sbErr } = await supabase
+        .from("Events")
+        .select("*")
+        .order("CreatedAt", { ascending: false });
+
+      if (!sbErr && dbEvents && dbEvents.length > 0) {
+        const mapped = dbEvents.map(mapEvent);
+        const sampleFiltered = SAMPLE_EVENTS.filter(se => !mapped.some(me => me.id === se.id));
+        const finalEvents = [...mapped, ...sampleFiltered];
+        setEvents(finalEvents);
+        localStorage.setItem("ef_events", JSON.stringify(finalEvents));
+      } else {
+        try {
+          const res = await api.listEvents({ pageSize: 200 });
+          const items = res?.items ?? res ?? [];
+          const mapped = items.length > 0 ? items.map(mapEvent) : SAMPLE_EVENTS;
+          setEvents(mapped);
+          localStorage.setItem("ef_events", JSON.stringify(mapped));
+        } catch {
+          const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
+          setEvents(saved.length > 0 ? saved : SAMPLE_EVENTS);
+        }
+      }
     } catch {
       try {
         const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
@@ -104,13 +122,33 @@ export function RealtimeProvider({ children }) {
       }
     }
 
-    // Venues
+    // 2. Venues — Fetch directly from Supabase first, fallback to API and localStorage
     try {
-      const res = await api.searchVenues({ pageSize: 200 });
-      const items = res?.items ?? res ?? [];
-      const mapped = items.length > 0 ? items.map(mapVenue) : SAMPLE_VENUES;
-      setVenues(mapped);
-      localStorage.setItem("ef_venues", JSON.stringify(mapped));
+      const { data: dbVenues, error: vErr } = await supabase
+        .from("Venues")
+        .select("*")
+        .order("CreatedAt", { ascending: false });
+
+      if (!vErr && dbVenues && dbVenues.length > 0) {
+        const mapped = dbVenues.map(mapVenue);
+        const sampleFiltered = SAMPLE_VENUES.filter(sv => !mapped.some(mv => mv.id === sv.id));
+        const finalVenues = [...mapped, ...sampleFiltered];
+        setVenues(finalVenues);
+        localStorage.setItem("ef_venues", JSON.stringify(finalVenues));
+      } else {
+        try {
+          const res = await api.searchVenues({ pageSize: 200 });
+          const items = res?.items ?? res ?? [];
+          const mapped = items.length > 0 ? items.map(mapVenue) : SAMPLE_VENUES;
+          setVenues(mapped);
+          localStorage.setItem("ef_venues", JSON.stringify(mapped));
+        } catch {
+          const custom = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
+          const saved = JSON.parse(localStorage.getItem("ef_venues") || "[]");
+          const merged = [...custom, ...SAMPLE_VENUES.filter(sv => !custom.some(cv => cv.id === sv.id))];
+          setVenues(saved.length > 0 ? saved : merged);
+        }
+      }
     } catch {
       try {
         const custom = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
