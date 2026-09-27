@@ -30,9 +30,22 @@ def create_plan_record(steps: List[str]) -> Dict[str, Any]:
 
 def run(objective: str, capacity: int, budget: float, event_date: str, location: Optional[str]) -> Dict[str, Any]:
     draft = create_event_draft(objective, capacity, budget, event_date, location)
+    required_data = ["objective", "capacity", "budget", "event_date", "location"]
+    risk_flags: List[str] = []
+
+    if not objective or not str(objective).strip():
+        risk_flags.append("missing_objective")
+    if not isinstance(capacity, int) or capacity <= 0:
+        risk_flags.append("invalid_capacity")
+    if not isinstance(budget, (int, float)) or budget <= 0:
+        risk_flags.append("invalid_budget")
+    if not event_date:
+        risk_flags.append("missing_event_date")
+    if not location or not str(location).strip():
+        risk_flags.append("location_not_specified")
 
     prompt = f"""You are the Planner / Coordinator Agent in an autonomous Event Management platform.
-Analyze this event objective and architect an event execution blueprint.
+Create a structured event execution plan and identify required data and risk flags.
 
 Event Objective: "{objective}"
 Target Capacity: {capacity} attendees
@@ -40,29 +53,20 @@ Total Budget: Rs. {budget:,.0f} LKR
 Event Date: {event_date}
 Target Location: {location or 'Flexible / Sri Lanka'}
 
-Generate a JSON object with:
-1. "title": A polished, professional event title.
-2. "summary": A 1-2 sentence strategic overview.
-3. "steps": An array of 5 exact operational action step codes (e.g. ["find_venue_and_vendor", "book_vendor", "create_ticket_types", "allocate_budget", "schedule_notifications"]).
-4. "milestones": An array of 3 timeline phases with phase name and a list of key tasks:
-   [
-     {{"phase": "Phase 1: Pre-Event Logistics (T-60 Days)", "tasks": ["Task 1", "Task 2"]}},
-     {{"phase": "Phase 2: Technical & AV Setup (T-14 Days)", "tasks": ["Task 1", "Task 2"]}},
-     {{"phase": "Phase 3: Execution & Gate Operations (Day 0)", "tasks": ["Task 1", "Task 2"]}}
-   ]
-5. "budget_breakdown": An array of 4 budget categories with estimated allocations:
-   [
-     {{"category": "Venue & Stage Logistics", "allocated": {budget * 0.45}, "pct": "45%"}},
-     {{"category": "Catering & Hospitality", "allocated": {budget * 0.30}, "pct": "30%"}},
-     {{"category": "Audio/Visual & Lighting", "allocated": {budget * 0.15}, "pct": "15%"}},
-     {{"category": "Contingency Reserve", "allocated": {budget * 0.10}, "pct": "10%"}}
-   ]
+Generate JSON with:
+1. "title": professional event title
+2. "summary": 1-2 sentence overview
+3. "steps": array of 5 operational action step codes
+4. "milestones": array of 3 phases containing phase and task list
+5. "budget_breakdown": array of 4 categories with allocated values and percentages
+6. "required_data": list of required inputs for execution
+7. "risk_flags": list of risk flags relevant to this request
 
 Return STRICT JSON ONLY:"""
 
     raw_response, engine_name = call_llm(
         prompt,
-        system_prompt="You are an expert AI event coordinator. Return valid JSON only.",
+        system_prompt="You are an expert AI event coordinator. Provide structured JSON only; do not make approval decisions.",
         cache_key=f"planner_{capacity}_{int(budget)}_{location}"
     )
 
@@ -74,11 +78,12 @@ Return STRICT JSON ONLY:"""
         ])
         milestones = parsed.get("milestones", [])
         budget_breakdown = parsed.get("budget_breakdown", [])
+        required_data = parsed.get("required_data", required_data)
+        risk_flags = parsed.get("risk_flags", risk_flags)
         if "title" in parsed:
             draft["title"] = parsed["title"]
         summary = parsed.get("summary", f"Autonomous event blueprint for {objective}")
     else:
-        # Fallback plan
         steps = [
             "find_venue_and_vendor",
             "book_vendor",
@@ -106,7 +111,15 @@ Return STRICT JSON ONLY:"""
         "input": {"objective": objective, "capacity": capacity, "budget": budget, "event_date": event_date, "location": location},
         "output": {
             "draft_event": draft,
-            "plan": plan_record,
+            "plan": {
+                "steps": steps,
+                "required_data": required_data,
+                "risk_flags": risk_flags,
+                "step_count": len(steps),
+            },
+            "steps": steps,
+            "required_data": required_data,
+            "risk_flags": risk_flags,
             "summary": summary,
             "milestones": milestones,
             "budget_breakdown": budget_breakdown,

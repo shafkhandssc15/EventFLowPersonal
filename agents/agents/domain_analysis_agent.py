@@ -277,8 +277,16 @@ def run(capacity: int, budget: float, event_date: str, location: Optional[str]) 
     venues = search_venues(capacity, location)
     vendors = search_vendors("Catering")
     available_venues = [v for v in venues if check_availability(v["venueId"], event_date)]
-
     ranked, engine_name = evaluate_venues_llm(available_venues, capacity, budget, event_date, location)
+
+    normalized = {
+        "capacity_required": capacity,
+        "preferred_location": location or "Sri Lanka",
+        "event_date": event_date,
+        "budget_limit": budget,
+        "venue_candidates": ranked,
+        "vendor_candidates": vendors,
+    }
 
     return {
         "agent": "DomainAnalysisAgent",
@@ -289,6 +297,19 @@ def run(capacity: int, budget: float, event_date: str, location: Optional[str]) 
             "location": location,
         },
         "output": {
+            "domain_context": {
+                "preferred_location": location or "Sri Lanka",
+                "event_date": event_date,
+                "target_capacity": capacity,
+                "budget_limit": budget,
+            },
+            "constraints": {
+                "minimum_capacity": capacity,
+                "budget_limit": budget,
+                "location_preference": location or "Sri Lanka",
+                "availability_required": True,
+            },
+            "normalized_data": normalized,
             "ranked_venues": ranked,
             "vendors": vendors,
             "llm_engine": engine_name,

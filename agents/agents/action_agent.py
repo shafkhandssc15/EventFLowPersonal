@@ -59,55 +59,51 @@ def run(top_venue: Dict[str, Any], vendors: List[Dict[str, Any]], budget: float)
     price_per_hour = float(top_venue.get("price_per_hour") or top_venue.get("PricePerHour") or 75000.0)
     vendor_price = float(vendor.get("price_per_service") or vendor.get("PricePerService") or 150000.0) if vendor else 0.0
 
-    # Base calculated cost: 6 hours venue + vendor quote
     calculated_base_cost = (price_per_hour * 6.0) + vendor_price
+    estimated_cost = max(calculated_base_cost, 0.0)
+    if budget > 0:
+        estimated_cost = min(estimated_cost, budget)
+
+    ticket_name = "Standard Delegate Pass"
+    ticket_tiers = [
+        {"name": "VIP Summit Pass", "price": 25000, "allocation_pct": 20, "perks": "VIP lounge access"},
+        {"name": "Standard Delegate Pass", "price": 10000, "allocation_pct": 70, "perks": "Main conference floor"},
+        {"name": "Student Pass", "price": 4000, "allocation_pct": 10, "perks": "General admission"},
+    ]
+    notif_subject = f"Tentative Reservation: {venue_name}"
+    notif_body = f"Venue hold initiated at {venue_name}. Pending financial safety review."
 
     prompt = f"""You are the Action & Execution Agent in an autonomous Event Management platform.
-Generate action execution records for reserving the top venue and configuring ticketing.
+Generate human-readable operation summary only. Do not make approval decisions.
 
 Venue Selected: {venue_name} (Rate: Rs. {price_per_hour:,.0f}/hr, Capacity: {top_venue.get('capacity', 500)})
 Vendor Selected: {vendor_name} (Quote: Rs. {vendor_price:,.0f})
 Event Budget: Rs. {budget:,.0f} LKR
 Calculated Operations Baseline: Rs. {calculated_base_cost:,.0f} LKR
 
-Generate a JSON object containing:
-1. "estimated_cost": A realistic total cost number in LKR (including venue 6h hire, vendor quote, and technical setup).
-2. "primary_ticket_name": Title for the primary attendee ticket tier (e.g. "Full Delegate Pass").
-3. "ticket_tiers": An array of 3 realistic ticket tiers:
-   [
-     {{"name": "VIP All-Access Pass", "price": 25000, "allocation_pct": 20, "perks": "Front row seating & VIP dinner"}},
-     {{"name": "Standard Delegate Pass", "price": 10000, "allocation_pct": 70, "perks": "Full access to keynote & exhibits"}},
-     {{"name": "Student Pass", "price": 4000, "allocation_pct": 10, "perks": "General admission pass"}}
-   ]
-4. "notification_subject": Subject line for the organizer notification.
-5. "notification_body": A 1-2 sentence professional notification body to the organizer.
-
+Return JSON with:
+1. "notification_subject": subject line for organizer email
+2. "notification_body": 1-2 sentence notification message
+3. "primary_ticket_name": ticket tier name
+4. "ticket_tiers": 3 ticket tiers with name, price, allocation_pct, perks
 Return STRICT JSON ONLY:"""
 
     raw_response, engine_name = call_llm(
         prompt,
-        system_prompt="You are an expert AI event operations and ticketing agent. Return valid JSON only.",
+        system_prompt="You are an expert event operations agent. Produce structured JSON only; do not decide approvals.",
         cache_key=f"action_{venue_id}_{int(budget)}"
     )
 
     parsed = parse_json_from_llm(raw_response) if raw_response else None
-
-    if parsed and isinstance(parsed, dict):
-        estimated_cost = float(parsed.get("estimated_cost", calculated_base_cost))
-        ticket_name = parsed.get("primary_ticket_name", "General Admission Pass")
-        ticket_tiers = parsed.get("ticket_tiers", [])
-        notif_subject = parsed.get("notification_subject", f"Tentative Hold Placed: {venue_name}")
-        notif_body = parsed.get("notification_body", f"Preliminary reservation placed at {venue_name}. Total cost estimated at Rs. {estimated_cost:,.0f} LKR.")
-    else:
-        estimated_cost = calculated_base_cost
-        ticket_name = "Standard Delegate Pass"
-        ticket_tiers = [
-            {"name": "VIP Summit Pass", "price": 25000, "allocation_pct": 20, "perks": "VIP lounge access"},
-            {"name": "Standard Delegate Pass", "price": 10000, "allocation_pct": 70, "perks": "Main conference floor"},
-            {"name": "Student Pass", "price": 4000, "allocation_pct": 10, "perks": "General admission"}
-        ]
-        notif_subject = f"Tentative Reservation: {venue_name}"
-        notif_body = f"Venue hold initiated at {venue_name}. Pending financial safety review."
+    if isinstance(parsed, dict):
+        if parsed.get("notification_subject"):
+            notif_subject = parsed["notification_subject"]
+        if parsed.get("notification_body"):
+            notif_body = parsed["notification_body"]
+        if parsed.get("primary_ticket_name"):
+            ticket_name = parsed["primary_ticket_name"]
+        if isinstance(parsed.get("ticket_tiers"), list) and parsed["ticket_tiers"]:
+            ticket_tiers = parsed["ticket_tiers"]
 
     booking = reserve_venue(venue_id, vendor_id, estimated_cost, venue_name)
     ticket_draft = generate_qr_ticket(ticket_name)
@@ -121,6 +117,9 @@ Return STRICT JSON ONLY:"""
             "ticket_draft": ticket_draft,
             "ticket_tiers": ticket_tiers,
             "notification": notification,
+            "estimated_cost": estimated_cost,
+            "budget": budget,
+            "auto_approval_threshold": 500000.0,
             "llm_engine": engine_name,
         },
         "tool_calls": [

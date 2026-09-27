@@ -10,6 +10,7 @@ Upgraded for AI Lab Architecture:
 
 from typing import Any, Dict
 from agents.llm_client import call_llm, parse_json_from_llm
+from agents.policy import AUTO_APPROVE_THRESHOLD_LKR, evaluate_policy
 
 # Sri Lankan Rupee standard spending threshold (over Rs. 500,000 requires human oversight)
 AUTO_APPROVE_THRESHOLD_LKR = 500000.0
@@ -33,55 +34,54 @@ def flag_for_approval(reason: str) -> Dict[str, Any]:
 
 def run(estimated_cost: float, total_budget: float) -> Dict[str, Any]:
     rule_result = validate_budget_rule(estimated_cost, total_budget)
+    policy_result = evaluate_policy(
+        estimated_cost=estimated_cost,
+        total_budget=total_budget,
+        capacity=350,
+        event_date="2027-11-20T09:00:00Z",
+        location="Colombo",
+    )
+    requires_approval = policy_result["requires_human_approval"]
+    decision = policy_result["decision"]
+    risk_level = policy_result["risk_level"]
+
+    audit_summary = (
+        f"Proposed cost Rs. {estimated_cost:,.0f} exceeds the approved budget or policy threshold, so human approval is required."
+        if requires_approval
+        else f"Proposed cost Rs. {estimated_cost:,.0f} is within budget and below the auto-approval threshold."
+    )
+    recommended_action = "Organizer sign-off required prior to locking venue reservation." if requires_approval else "Auto-approved for booking."
 
     prompt = f"""You are the Validation & Safety Agent in an autonomous Event Management platform.
-Conduct a financial safety audit and risk evaluation on the proposed event booking.
+Provide a human-friendly explanation of this compliance result.
 
 Financial Metrics:
 - Proposed Commitment: Rs. {estimated_cost:,.0f} LKR
 - Total Allocated Budget: Rs. {total_budget:,.0f} LKR
 - Auto-Approval Policy Threshold: Rs. {AUTO_APPROVE_THRESHOLD_LKR:,.0f} LKR
 - Budget Variance: Rs. {(total_budget - estimated_cost):,.0f} LKR
+- Deterministic Rule Result: {rule_result}
 
-Safety Rules:
-1. If proposed cost exceeds total budget, it is HIGH RISK and CANNOT be auto-approved.
-2. If proposed cost exceeds the policy threshold (Rs. 500,000 LKR), human organizer approval is MANDATORY (high-impact action gate).
-3. If within budget and under threshold, it can be AUTO-APPROVED.
-
-Generate a JSON object with:
-1. "decision": "auto_approved" OR "pending_human_approval"
-2. "risk_level": "LOW", "MEDIUM", or "HIGH"
-3. "requires_human_approval": true or false
-4. "audit_summary": A 1-2 sentence compliance explanation detailing budget variance and safety checks.
-5. "recommended_action": A concise recommendation for the organizer.
-
+Rules are authoritative. Explain the rule-based outcome clearly.
+Return a JSON object with:
+1. "explanation": 1-2 sentence business-friendly explanation.
+2. "summary": a concise summary for the organizer.
 Return STRICT JSON ONLY:"""
 
     raw_response, engine_name = call_llm(
         prompt,
-        system_prompt="You are an expert AI financial compliance and safety auditor. Return valid JSON only.",
+        system_prompt="You are an expert AI financial compliance and safety auditor. Explain the rule result, but do not decide compliance.",
         cache_key=f"val_{int(estimated_cost)}_{int(total_budget)}"
     )
 
     parsed = parse_json_from_llm(raw_response) if raw_response else None
+    explanation = parsed.get("explanation") if isinstance(parsed, dict) else None
+    summary = parsed.get("summary") if isinstance(parsed, dict) else None
 
-    if parsed and isinstance(parsed, dict) and "requires_human_approval" in parsed:
-        requires_approval = bool(parsed["requires_human_approval"])
-        decision = parsed.get("decision", "pending_human_approval" if requires_approval else "auto_approved")
-        risk_level = parsed.get("risk_level", "MEDIUM" if requires_approval else "LOW")
-        audit_summary = parsed.get("audit_summary", f"Commitment of Rs. {estimated_cost:,.0f} LKR audited against budget.")
-        recommended_action = parsed.get("recommended_action", "Review and authorize booking.")
-    else:
-        # Fallback to rule engine
-        requires_approval = not rule_result["auto_approve"]
-        decision = "pending_human_approval" if requires_approval else "auto_approved"
-        risk_level = "HIGH" if not rule_result["within_budget"] else ("MEDIUM" if requires_approval else "LOW")
-        audit_summary = (
-            f"Proposed cost Rs. {estimated_cost:,.0f} exceeds auto-approval threshold Rs. {AUTO_APPROVE_THRESHOLD_LKR:,.0f} LKR."
-            if requires_approval
-            else f"Proposed cost Rs. {estimated_cost:,.0f} is within budget and policy limits."
-        )
-        recommended_action = "Organizer sign-off required prior to locking venue reservation." if requires_approval else "Auto-approved for booking."
+    if not explanation:
+        explanation = audit_summary
+    if not summary:
+        summary = recommended_action
 
     flag = flag_for_approval(audit_summary) if requires_approval else None
 
@@ -90,10 +90,13 @@ Return STRICT JSON ONLY:"""
         "input": {"estimated_cost": estimated_cost, "total_budget": total_budget},
         "output": {
             "decision": decision,
+            "requires_human_approval": requires_approval,
             "rule_result": rule_result,
             "risk_level": risk_level,
             "audit_summary": audit_summary,
             "recommended_action": recommended_action,
+            "explanation": explanation,
+            "summary": summary,
             "flag": flag,
             "llm_engine": engine_name,
         },
