@@ -4,32 +4,17 @@ import {
   IcDatabase, IcCheckCircle, IcUsers, IcBuilding, IcTicket,
   IcCheck, IcRefresh, IcShield, IcZap, IcPlus, IcUser, IcX
 } from "../components/Icons.jsx";
-import { supabase, seedSupabaseDatabase, SUPABASE_URL, formatLKR } from "../api/supabase.js";
+import { supabase, SUPABASE_URL, formatLKR } from "../api/supabase.js";
 import { api } from "../api/client.js";
-
-function getRegisteredUsers() {
-  try {
-    const reg = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
-    const approved = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
-    const merged = [...reg];
-    approved.forEach(a => {
-      if (!merged.some(m => m.email.toLowerCase() === a.email.toLowerCase())) {
-        merged.push({ ...a, status: "Active" });
-      }
-    });
-    return merged.map(u => ({ ...u, status: u.status || "Active" }));
-  } catch {
-    return [];
-  }
-}
 
 export default function AdminDashboard() {
   const { user, login } = useAuth();
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
-  const [users, setUsers] = useState(getRegisteredUsers);
+  const [users, setUsers] = useState([]);
   const [eventsCount, setEventsCount] = useState(0);
   const [venuesCount, setVenuesCount] = useState(0);
+  const [vendorsCount, setVendorsCount] = useState(0);
   const [promotionNotice, setPromotionNotice] = useState(null);
   const [adminTab, setAdminTab] = useState("approvals"); // "approvals" | "users" | "revenue" | "database" | "auditlog"
   const [modalError, setModalError] = useState(""); // FIX: was missing, caused crash
@@ -39,18 +24,7 @@ export default function AdminDashboard() {
   });
 
   // Pending Approvals Queue (only real requests from organizers and vendors)
-  const [pendingApprovals, setPendingApprovals] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-      const real = saved.filter(r => r.id !== "req-lk-101" && r.id !== "req-lk-102");
-      if (real.length !== saved.length) {
-        localStorage.setItem("ef_pending_approvals", JSON.stringify(real));
-      }
-      return real;
-    } catch {
-      return [];
-    }
-  });
+  const [pendingApprovals, setPendingApprovals] = useState([]);
 
   // New User / Role Assignment Modal
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -80,34 +54,21 @@ export default function AdminDashboard() {
         .select("*")
         .order("CreatedAt", { ascending: false });
 
-      if (!uErr && dbUsers && dbUsers.length > 0) {
+      if (!uErr && dbUsers) {
         const mapped = dbUsers.map(row => ({
           id: row.Id || row.id,
           name: row.Name || row.name || (row.Email ? row.Email.split("@")[0] : "User"),
           email: row.Email || row.email,
           role: row.Role || row.role || "Attendee",
-          nic: row.Nic || row.nic || "199012304567",
-          contact: row.Contact || row.contact || "+94 77 123 4567",
-          address: row.Address || row.address || "Sri Lanka",
+          nic: row.Nic || row.nic || "",
+          contact: row.Contact || row.contact || "",
+          address: row.Address || row.address || "",
           status: row.IsApproved === false ? "Pending Verification" : "Active",
           isApproved: row.IsApproved !== false,
           createdAt: row.CreatedAt || row.createdAt
         }));
 
-        const localReg = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
-        const localAppr = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
-        const combined = [...mapped];
-        [...localReg, ...localAppr].forEach(loc => {
-          if (loc.email && !combined.some(c => c.email?.toLowerCase() === loc.email.toLowerCase())) {
-            combined.push({
-              ...loc,
-              status: loc.status || "Active"
-            });
-          }
-        });
-
-        setUsers(combined);
-        localStorage.setItem("ef_registered_users", JSON.stringify(combined));
+        setUsers(mapped);
       }
     } catch (e) {
       console.warn("Supabase Users sync warning:", e);
@@ -121,6 +82,13 @@ export default function AdminDashboard() {
       if (!eErr && typeof eCount === "number") {
         setEventsCount(eCount);
       }
+    } catch {}
+
+    try {
+      const { count: vndCount, error: vndErr } = await supabase
+        .from("Vendors")
+        .select("*", { count: "exact", head: true });
+      if (!vndErr && typeof vndCount === "number") setVendorsCount(vndCount);
     } catch {}
 
     // 3. Fetch real Venues count from Supabase
@@ -163,16 +131,8 @@ export default function AdminDashboard() {
           })
           .filter(Boolean);
 
-        const localSaved = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-        const mergedReqs = [...mappedReqs];
-        localSaved.forEach(ls => {
-          if (!mergedReqs.some(mr => mr.id === ls.id || (mr.email && mr.email === ls.email))) {
-            mergedReqs.push(ls);
-          }
-        });
-        const activeOnly = mergedReqs.filter(r => r.status === "Pending" || r.status === "PendingAdminApproval");
+        const activeOnly = mappedReqs.filter(r => r.status === "Pending" || r.status === "PendingAdminApproval");
         setPendingApprovals(activeOnly);
-        localStorage.setItem("ef_pending_approvals", JSON.stringify(activeOnly));
       }
     } catch {}
   }
@@ -190,16 +150,6 @@ export default function AdminDashboard() {
       if (typeof len === "number") setVenuesCount(len);
     }).catch(() => {});
 
-    function syncPendingApprovals() {
-      try {
-        const saved = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-        setPendingApprovals(saved);
-      } catch {}
-    }
-
-    window.addEventListener("storage", syncPendingApprovals);
-    const interval = setInterval(syncPendingApprovals, 3000);
-
     // Supabase Realtime channel for live database updates
     const channel = supabase
       .channel("admin-realtime-data")
@@ -210,8 +160,6 @@ export default function AdminDashboard() {
       .subscribe();
 
     return () => {
-      window.removeEventListener("storage", syncPendingApprovals);
-      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -220,10 +168,10 @@ export default function AdminDashboard() {
     setSeeding(true);
     setSeedResult(null);
     try {
-      const res = await seedSupabaseDatabase();
-      setSeedResult(res);
+      await syncWithSupabase();
+      setSeedResult({ supabaseSynced: true, message: "Dashboard data refreshed from Supabase.", eventsCount, venuesCount, vendorsCount });
     } catch (e) {
-      setSeedResult({ supabaseSynced: false, message: e.message || "Seeding failed" });
+      setSeedResult({ supabaseSynced: false, message: e.message || "Supabase refresh failed" });
     } finally {
       setSeeding(false);
     }
@@ -501,8 +449,8 @@ export default function AdminDashboard() {
       const orgMap = {};
       confirmed.forEach(b => {
         const ev = eventsList.find(e => e.id === b.eventId);
-        const orgName = ev?.organizerName || b.organizerName || "Alex Chen · Tech Lanka";
-        const orgEmail = ev?.organizerEmail || "organizer@demo.com";
+        const orgName = ev?.organizerName || b.organizerName || "Organizer";
+        const orgEmail = ev?.organizerEmail || "";
         if (!orgMap[orgName]) {
           orgMap[orgName] = {
             name: orgName,
@@ -1134,7 +1082,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <p style={{ fontSize: 13, color: "var(--c-text-2)", maxWidth: 640, margin: "8px 0 0" }}>
-                  Push curated Sri Lankan venues (BMICH, Nelum Pokuna, Lighthouse Galle) with GPS coordinates for OpenStreetMap and ticket tiers directly to Supabase.
+                  Refresh dashboard data from the connected Supabase database.
                 </p>
               </div>
 
@@ -1147,12 +1095,12 @@ export default function AdminDashboard() {
                 {seeding ? (
                   <>
                     <IcRefresh className="spin" style={{ width: 15, height: 15 }} />
-                    Syncing Sri Lanka Data…
+                    Refreshing Data…
                   </>
                 ) : (
                   <>
                     <IcZap style={{ width: 15, height: 15 }} />
-                    Seed Supabase Database
+                    Refresh Supabase Data
                   </>
                 )}
               </button>
@@ -1164,7 +1112,7 @@ export default function AdminDashboard() {
                 <div>
                   <strong>{seedResult.message}</strong>
                   <div style={{ fontSize: 12, marginTop: 4, opacity: 0.9 }}>
-                    Injected {seedResult.eventsCount || 6} Sri Lankan Events, {seedResult.venuesCount || 6} Venues, and {seedResult.vendorsCount || 5} Vendor packages.
+                    Events: {seedResult.eventsCount ?? 0}; venues: {seedResult.venuesCount ?? 0}; vendors: {seedResult.vendorsCount ?? 0}.
                   </div>
                 </div>
               </div>

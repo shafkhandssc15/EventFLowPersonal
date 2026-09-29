@@ -6,7 +6,7 @@ import {
   IcUser, IcShield, IcChevronRight, IcClock, IcX, IcCheck,
   IcMail, IcImage, IcAlert, IcSend
 } from "../components/Icons.jsx";
-import { supabase, SAMPLE_EVENTS, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 import { useRealtime } from "../context/RealtimeContext.jsx";
 import QRCodeVisual from "../components/QRCodeVisual.jsx";
 import BookingChatDrawer from "../components/BookingChatDrawer.jsx";
@@ -28,34 +28,17 @@ export default function AttendeeDashboard() {
       return;
     }
 
-    // Function to load and sync passes from Supabase ApprovalRequests & localStorage
+    // Load passes from Supabase ApprovalRequests.
     async function loadAttendeePasses() {
       try {
-        let rawSaved = JSON.parse(localStorage.getItem(`ef_tickets_${userKey}`) || "[]");
-
-        // Strictly purge any legacy demo/sample passes (BK-LK-908214, BK-LK-774102)
-        if (rawSaved.length > 0) {
-          const cleaned = rawSaved.filter(t =>
-            t.bookingRef !== "BK-LK-908214" &&
-            t.bookingRef !== "BK-LK-774102" &&
-            !t.id?.startsWith("tkt-lk-10p-") &&
-            t.id !== "tkt-lk-single-02"
-          );
-          if (cleaned.length !== rawSaved.length) {
-            localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(cleaned));
-            rawSaved = cleaned;
-          }
-        }
-
-        // Pull real-time requests from Supabase ApprovalRequests table
-        const { data: dbRequests } = await supabase
+        const { data: dbRequests, error } = await supabase
           .from("ApprovalRequests")
           .select("*")
           .order("CreatedAt", { ascending: false });
+        if (error) throw error;
 
-        if (dbRequests && dbRequests.length > 0) {
-          const mySupabasePasses = [];
-          dbRequests.forEach(req => {
+        const mySupabasePasses = [];
+        (dbRequests || []).forEach(req => {
             try {
               const parsed = JSON.parse(req.Reason);
               const isMine = (user?.id && parsed.attendeeId === user.id) ||
@@ -68,6 +51,7 @@ export default function AttendeeDashboard() {
 
                 const updatedPasses = (parsed.passes || []).map(p => ({
                   ...p,
+                  approvalRequestId: req.Id,
                   status: currentStatus,
                   paymentStatus: currentStatus,
                   rejectionReason: req.Status === "Rejected" ? (parsed.rejectionReason || "Payment slip rejected by organizer") : null
@@ -76,50 +60,10 @@ export default function AttendeeDashboard() {
                 mySupabasePasses.push(...updatedPasses);
               }
             } catch {}
-          });
-
-          if (mySupabasePasses.length > 0) {
-            localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(mySupabasePasses));
-            setTickets(mySupabasePasses);
-            setSelectedTicket(prev => {
-              if (!prev) return mySupabasePasses[0];
-              return mySupabasePasses.find(p => p.id === prev.id) || mySupabasePasses[0];
-            });
-            setExpandedBookingId(prev => prev || mySupabasePasses[0]?.bookingRef);
-            return;
-          }
-        }
-
-        if (rawSaved.length > 0) {
-          setTickets(rawSaved);
-          setSelectedTicket(rawSaved[0]);
-          setExpandedBookingId(rawSaved[0].bookingRef || rawSaved[0].eventId);
-          return;
-        }
-
-        // Check ef_master_bookings fallback
-        const masterBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
-        const userEmail = user?.email?.toLowerCase();
-        const myBookings = masterBookings.filter(b =>
-          (user?.id && b.attendeeId === user.id) ||
-          (userEmail && b.attendeeEmail && b.attendeeEmail.toLowerCase() === userEmail)
-        );
-
-        if (myBookings.length > 0) {
-          const recoveredPasses = myBookings.flatMap(b => b.passes || []);
-          if (recoveredPasses.length > 0) {
-            localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(recoveredPasses));
-            setTickets(recoveredPasses);
-            setSelectedTicket(recoveredPasses[0]);
-            setExpandedBookingId(recoveredPasses[0].bookingRef || recoveredPasses[0].eventId);
-            return;
-          }
-        }
-
-        // Truly empty wallet
-        setTickets([]);
-        setSelectedTicket(null);
-        setExpandedBookingId(null);
+        });
+        setTickets(mySupabasePasses);
+        setSelectedTicket(prev => mySupabasePasses.find(p => p.id === prev?.id) || mySupabasePasses[0] || null);
+        setExpandedBookingId(prev => mySupabasePasses.some(p => p.bookingRef === prev) ? prev : (mySupabasePasses[0]?.bookingRef || null));
       } catch {
         setTickets([]);
         setSelectedTicket(null);
@@ -141,56 +85,40 @@ export default function AttendeeDashboard() {
     };
   }, [user]);
 
-  // Refresh tickets from localStorage
-  function refreshTickets() {
+  // Refresh tickets from Supabase.
+  async function refreshTickets() {
     try {
-      const userKey = user?.id || user?.email;
-      if (!userKey) return;
-      const rawSaved = JSON.parse(localStorage.getItem(`ef_tickets_${userKey}`) || "[]");
-      setTickets(rawSaved);
-      if (rawSaved.length === 0) {
-        setSelectedTicket(null);
-        setExpandedBookingId(null);
-      } else if (selectedTicket) {
-        const updatedSelected = rawSaved.find(t => t.id === selectedTicket.id) || rawSaved[0];
-        setSelectedTicket(updatedSelected);
-      } else {
-        setSelectedTicket(rawSaved[0]);
-      }
-    } catch {}
+      const { data, error } = await supabase.from("ApprovalRequests").select("*").order("CreatedAt", { ascending: false });
+      if (error) throw error;
+      const passes = (data || []).flatMap(req => {
+        try {
+          const parsed = JSON.parse(req.Reason || "{}");
+          const isMine = (user?.id && parsed.attendeeId === user.id) ||
+            (user?.email && parsed.attendeeEmail?.toLowerCase() === user.email.toLowerCase());
+          if (!isMine) return [];
+          const status = req.Status === "Approved" ? "Confirmed" : req.Status === "Rejected" ? "Rejected" : "PendingApproval";
+          return (parsed.passes || []).map(pass => ({ ...pass, approvalRequestId: req.Id, status, paymentStatus: status }));
+        } catch { return []; }
+      });
+      setTickets(passes);
+      setSelectedTicket(prev => passes.find(pass => pass.id === prev?.id) || passes[0] || null);
+      setExpandedBookingId(prev => passes.some(pass => pass.bookingRef === prev) ? prev : (passes[0]?.bookingRef || null));
+    } catch {
+      setTickets([]);
+      setSelectedTicket(null);
+      setExpandedBookingId(null);
+    }
   }
 
-  // Real-time listener for cross-tab or organizer approvals
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      const userKey = user?.id || user?.email;
-      if (!e.key || e.key === `ef_tickets_${userKey}` || e.key === "ef_master_bookings") {
-        refreshTickets();
-      }
-    };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, [user]);
-
   // Cancel a pending booking (removes from the organizer's queue too)
-  function cancelBooking(bookingRef) {
+  async function cancelBooking(bookingRef) {
     if (!window.confirm("Cancel this booking? This will withdraw your payment slip from the organizer's review queue.")) return;
     try {
-      const userKey = user?.id || user?.email;
-      // Remove from attendee tickets
-      const updated = tickets.filter(t => t.bookingRef !== bookingRef);
-      setTickets(updated);
-      if (userKey) {
-        localStorage.setItem(`ef_tickets_${userKey}`, JSON.stringify(updated));
-      }
-      if (selectedTicket?.bookingRef === bookingRef) setSelectedTicket(updated[0] || null);
-      if (expandedBookingId === bookingRef) setExpandedBookingId(null);
-
-      // Remove from master bookings queue
-      const masterBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
-      const updatedMaster = masterBookings.filter(b => b.bookingRef !== bookingRef);
-      localStorage.setItem("ef_master_bookings", JSON.stringify(updatedMaster));
-      window.dispatchEvent(new Event("storage"));
+      const requestId = tickets.find(t => t.bookingRef === bookingRef)?.approvalRequestId;
+      if (!requestId) return;
+      const { error } = await supabase.from("ApprovalRequests").delete().eq("Id", requestId);
+      if (error) throw error;
+      await refreshTickets();
     } catch {}
   }
 
@@ -925,4 +853,3 @@ export default function AttendeeDashboard() {
     </>
   );
 }
-

@@ -6,7 +6,7 @@ import {
   IcCheck, IcX, IcCalendar, IcMapPin, IcUsers, IcCheckCircle,
   IcAlert, IcBuilding, IcClock
 } from "../components/Icons.jsx";
-import { SAMPLE_VENUES, SAMPLE_VENDORS, formatLKR } from "../api/supabase.js";
+import { formatLKR } from "../api/supabase.js";
 
 const AGENTS = [
   { key: "PlannerCoordinatorAgent", label: "1. Planner Coordinator", Icon: IcTarget, desc: "Deconstructs objectives, architects timeline & milestones" },
@@ -401,4 +401,3 @@ export default function AgentWorkflowRunner() {
     </>
   );
 }
-

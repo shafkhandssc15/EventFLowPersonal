@@ -135,14 +135,7 @@ export default function AuthPage() {
     try {
       const cleanEmail = email.trim().toLowerCase();
 
-      // Master and predefined lead accounts bypass verification queues
-      const isExemptEmail =
-        cleanEmail === "admin.eventflow@gmail.com" ||
-        cleanEmail === "admin@demo.com" ||
-        cleanEmail === "organizer.eventflow@gmail.com" ||
-        cleanEmail === "organizer@demo.com" ||
-        cleanEmail === "vendor.eventflow@gmail.com" ||
-        cleanEmail === "vendor@demo.com";
+      const isExemptEmail = false;
 
       // 1. Check pending approval
       const pendingList = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
@@ -258,9 +251,9 @@ export default function AuthPage() {
               name: uRow.Name || uRow.name || (userRole === "Admin" ? "Administrator" : "User"),
               role: userRole,
               email: uRow.Email || uRow.email,
-              nic: "199012304567",
-              contact: "+94 11 234 5678",
-              address: "Level 14, World Trade Center, Colombo 01"
+              nic: uRow.Nic || uRow.nic || "",
+              contact: uRow.Contact || uRow.contact || "",
+              address: uRow.Address || uRow.address || ""
             });
             return;
           } else {

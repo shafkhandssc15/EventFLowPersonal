@@ -26,7 +26,7 @@ builder.Services.AddHttpClient("AgentService", client =>
 
 var app = builder.Build();
 
-// Ensure Supabase DB is migrated and seeded with Sri Lanka data
+// Ensure Supabase DB is initialized and remove legacy demo events
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -66,7 +66,7 @@ app.MapControllers();
 app.MapPost("/api/seed", async (AppDbContext db) =>
 {
     await DbSeeder.SeedAsync(db);
-    return Results.Ok(new { message = "Supabase PostgreSQL Database successfully populated with Sri Lanka sample data!" });
+    return Results.Ok(new { message = "Legacy demo events removed; no sample events were added." });
 });
 
 app.Run();

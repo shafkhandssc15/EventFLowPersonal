@@ -19,7 +19,7 @@ const STATUS_MAP = {
 export default function EventsList() {
   const { user } = useAuth();
   // ── Realtime: events come from central Supabase subscription ───────────────
-  const { events: allEvents, connected, lastUpdate } = useRealtime();
+  const { events: allEvents, venues, connected, lastUpdate } = useRealtime();
   const [cat, setCat] = useState("");
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState("grid");
@@ -126,7 +126,7 @@ export default function EventsList() {
               Interactive OpenStreetMap Sri Lanka
             </div>
             <VenueMap
-              venues={SAMPLE_VENUES}
+              venues={venues}
               height="500px"
             />
           </div>

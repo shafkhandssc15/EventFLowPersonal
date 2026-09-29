@@ -8,7 +8,7 @@ import {
   IcAlert, IcBuilding, IcShield, IcCompass, IcMail, IcImage,
   IcCheckCircle, IcClock, IcX
 } from "../components/Icons.jsx";
-import { supabase, SAMPLE_VENUES, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 import ImageUploader from "../components/ImageUploader.jsx";
 import BookingChatDrawer from "../components/BookingChatDrawer.jsx";
 
@@ -65,24 +65,20 @@ export default function OrganizerDashboard() {
   function loadAll() {
     setLoading(true);
 
-    // 1. Load Registered Venues — prefer Realtime venues, fall back to localStorage + SAMPLE_VENUES
-    const rtVenues = realtimeVenues.length > 0 ? realtimeVenues : null;
-    let venueList = rtVenues || SAMPLE_VENUES;
-    try {
-      const custom = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-      venueList = rtVenues || [...custom, ...SAMPLE_VENUES.filter(sv => !custom.some(cv => cv.id === sv.id))];
-    } catch {}
+    // Venues are sourced from the live database-backed realtime context.
+    const venueList = realtimeVenues;
     setRegisteredVenues(venueList);
 
     // 2. Check if a venue was pre-selected from the Venues page
     try {
       const preselected = JSON.parse(localStorage.getItem("ef_preselected_venue") || "null");
-      if (preselected) {
-        setSelectedVenue(preselected);
+      const matchedVenue = preselected && venueList.find(v => v.id === preselected.id);
+      if (matchedVenue) {
+        setSelectedVenue(matchedVenue);
         setForm(f => ({
           ...f,
-          venueId: preselected.id,
-          capacity: preselected.capacity || 1000
+          venueId: matchedVenue.id,
+          capacity: matchedVenue.capacity || 1000
         }));
         setShowForm(true);
         localStorage.removeItem("ef_preselected_venue");
@@ -100,65 +96,44 @@ export default function OrganizerDashboard() {
     // 3. Events are live via useRealtime() — no fetch needed here
     setLoading(false);
 
-    // 4. Load Master Bookings for Slip Verification (from Supabase ApprovalRequests & localStorage)
-    try {
-      const savedBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
-      // Filter out any legacy sample bookings
-      const realBookings = savedBookings.filter(b =>
-        b.bookingRef !== "BK-LK-883011" &&
-        b.bookingRef !== "BK-LK-908214" &&
-        b.bookingRef !== "BK-LK-441092"
-      );
-      if (realBookings.length !== savedBookings.length) {
-        localStorage.setItem("ef_master_bookings", JSON.stringify(realBookings));
-      }
-      setMasterBookings(realBookings);
-
-      // Also pull directly from Supabase ApprovalRequests
-      supabase
+    // 4. Load payment slip records from Supabase.
+    supabase
         .from("ApprovalRequests")
         .select("*")
         .order("CreatedAt", { ascending: false })
         .then(({ data: dbReqs }) => {
-          if (dbReqs && dbReqs.length > 0) {
-            const dbList = dbReqs.map(r => {
-              try {
-                const parsed = JSON.parse(r.Reason);
-                const s = r.Status === "Approved" ? "Confirmed" : (r.Status === "Rejected" ? "Rejected" : "PendingApproval");
-                return {
-                  ...parsed,
-                  dbId: r.Id,
-                  status: s,
-                  rejectionReason: r.Status === "Rejected" ? (parsed.rejectionReason || "Slip rejected by organizer") : null
-                };
-              } catch {
-                return null;
-              }
-            }).filter(Boolean);
-
-            setMasterBookings(prev => {
-              const combined = [...dbList];
-              prev.forEach(p => {
-                if (!combined.some(c => c.bookingRef === p.bookingRef)) {
-                  combined.push(p);
-                }
-              });
-              return combined;
-            });
-          }
+          const dbList = (dbReqs || []).map(r => {
+            try {
+              const parsed = JSON.parse(r.Reason || "{}");
+              const status = r.Status === "Approved" ? "Confirmed" : (r.Status === "Rejected" ? "Rejected" : "PendingApproval");
+              return { ...parsed, dbId: r.Id, status,
+                rejectionReason: r.Status === "Rejected" ? (parsed.rejectionReason || "Slip rejected by organizer") : null };
+            } catch { return null; }
+          }).filter(Boolean);
+          setMasterBookings(dbList);
         })
         .catch(err => console.warn("Supabase load approval requests warning:", err));
-    } catch {
-      setMasterBookings([]);
-    }
   }
 
-  // Refresh bookings from localStorage
-  function refreshBookings() {
-    try {
-      const saved = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
-      setMasterBookings(saved);
-    } catch {}
+  useEffect(() => {
+    setRegisteredVenues(realtimeVenues);
+    if (!selectedVenue && realtimeVenues.length > 0) {
+      setSelectedVenue(realtimeVenues[0]);
+      setForm(f => ({ ...f, venueId: realtimeVenues[0].id, capacity: realtimeVenues[0].capacity || 1000 }));
+    }
+  }, [realtimeVenues]);
+
+  // Refresh booking records from Supabase.
+  async function refreshBookings() {
+    const { data, error } = await supabase.from("ApprovalRequests").select("*").order("CreatedAt", { ascending: false });
+    if (error) return;
+    const rows = (data || []).map(r => {
+      try {
+        const parsed = JSON.parse(r.Reason || "{}");
+        return { ...parsed, dbId: r.Id, status: r.Status === "Approved" ? "Confirmed" : (r.Status === "Rejected" ? "Rejected" : "PendingApproval") };
+      } catch { return null; }
+    }).filter(Boolean);
+    setMasterBookings(rows);
   }
 
   // Direct payment approval by organizer
@@ -1493,4 +1468,3 @@ export default function OrganizerDashboard() {
     </>
   );
 }
-

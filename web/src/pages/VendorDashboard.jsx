@@ -7,13 +7,15 @@ import {
   IcCompass, IcUsers, IcClock, IcMail, IcShield, IcX, IcEye
 } from "../components/Icons.jsx";
 import VenueMap from "../components/VenueMap.jsx";
-import { supabase, SAMPLE_VENUES, SAMPLE_VENDORS, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 import ImageUploader from "../components/ImageUploader.jsx";
+import { useRealtime } from "../context/RealtimeContext.jsx";
 
 const SERVICE_TYPES = ["Audio/Visual", "Catering", "Photography", "Security", "Decoration", "Transportation", "Other"];
 
 export default function VendorDashboard() {
   const { user } = useAuth();
+  const { events: liveEvents } = useRealtime();
   const navigate = useNavigate();
 
   const [venues, setVenues]     = useState([]);
@@ -72,14 +74,7 @@ export default function VendorDashboard() {
 
   function loadAll() {
     setLoading(true);
-    // 1. Load existing custom venues from Supabase, localStorage and defaults
-    try {
-      const customVenues = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-      const combined = [...customVenues, ...SAMPLE_VENUES.filter(sv => !customVenues.some(cv => cv.id === sv.id))];
-      setVenues(combined);
-    } catch {
-      setVenues(SAMPLE_VENUES);
-    }
+    setVenues([]);
 
     // Direct fetch from Supabase Venues table
     supabase
@@ -87,7 +82,7 @@ export default function VendorDashboard() {
       .select("*")
       .order("CreatedAt", { ascending: false })
       .then(({ data: dbVenues, error: vErr }) => {
-        if (!vErr && dbVenues && dbVenues.length > 0) {
+        if (!vErr && dbVenues) {
           const mapped = dbVenues.map(row => ({
             id: row.Id || row.id,
             ownerId: row.OwnerId || row.vendorId || row.ownerId,
@@ -105,24 +100,10 @@ export default function VendorDashboard() {
             isActive: row.IsActive ?? true
           }));
 
-          setVenues(prev => {
-            const next = [...mapped];
-            prev.forEach(p => {
-              if (!next.some(n => n.id === p.id)) next.push(p);
-            });
-            localStorage.setItem("ef_registered_venues", JSON.stringify(next));
-            return next;
-          });
+          setVenues(mapped);
         }
       })
       .catch(err => console.warn("Supabase Venues load error:", err));
-
-    try {
-      const evs = JSON.parse(localStorage.getItem("ef_events") || "[]");
-      setPlatformEvents(evs);
-    } catch {
-      setPlatformEvents([]);
-    }
 
     try {
       const inqs = JSON.parse(localStorage.getItem("ef_venue_inquiries") || "[]");
@@ -131,15 +112,13 @@ export default function VendorDashboard() {
       setInquiries([]);
     }
 
-    const customVendors = JSON.parse(localStorage.getItem("ef_registered_vendors") || "[]");
     api.searchVendors()
       .then(r => {
         const items = r.items || r || [];
-        const base = items.length > 0 ? items : SAMPLE_VENDORS;
-        setVendors([...customVendors, ...base.filter(bv => !customVendors.some(cv => cv.id === bv.id))]);
+        setVendors(items);
       })
       .catch(() => {
-        setVendors([...customVendors, ...SAMPLE_VENDORS.filter(bv => !customVendors.some(cv => cv.id === bv.id))]);
+        setVendors([]);
       })
       .finally(() => setLoading(false));
   }
@@ -149,6 +128,10 @@ export default function VendorDashboard() {
     window.addEventListener("storage", loadAll);
     return () => window.removeEventListener("storage", loadAll);
   }, []);
+
+  useEffect(() => {
+    setPlatformEvents(liveEvents);
+  }, [liveEvents]);
 
   function handleOpenInquiry(venue) {
     setSelectedVenueForInquiry(venue);
@@ -176,7 +159,7 @@ export default function VendorDashboard() {
       venueOwnerId: selectedVenueForInquiry.ownerId,
       organizerId: user?.id,
       organizerName: user?.name || "Organizer",
-      organizerEmail: user?.email || "organizer@demo.com",
+      organizerEmail: user?.email || "",
       organizerPhone: inquiryForm.contactPhone,
       eventTitle: inquiryForm.eventTitle.trim(),
       requestedDate: inquiryForm.requestedDate,
@@ -418,8 +401,8 @@ export default function VendorDashboard() {
         targetId: id,
         name: targetVenue?.name || "Venue Deletion",
         role: "VendorVenueManager",
-        requestedBy: user?.name || "Jordan Lee",
-        applicantEmail: user?.email || "vendor@demo.com",
+        requestedBy: user?.name || "Vendor",
+        applicantEmail: user?.email || "",
         nic: user?.nic || "198545607890",
         contact: user?.contact || "+94 76 555 4321",
         status: "PendingAdminApproval",
@@ -458,8 +441,8 @@ export default function VendorDashboard() {
 
     try {
       const newVnd = {
-        id: `vnd-lk-${Date.now()}`,
-        ownerId: user?.id || "00000000-0000-0000-0000-0000000000bb",
+        id: crypto.randomUUID(),
+        ownerId: user?.id,
         name: rf.name.trim(),
         serviceType: rf.serviceType,
         pricePerService: Number(rf.pricePerService),
@@ -472,10 +455,15 @@ export default function VendorDashboard() {
         isActive: true
       };
 
-      const existingVendors = JSON.parse(localStorage.getItem("ef_registered_vendors") || "[]");
-      const updated = [newVnd, ...existingVendors];
-      localStorage.setItem("ef_registered_vendors", JSON.stringify(updated));
-      window.dispatchEvent(new Event("storage"));
+      const { error: vendorError } = await supabase.from("Vendors").insert({
+        Id: newVnd.id,
+        OwnerId: newVnd.ownerId,
+        Name: newVnd.name,
+        ServiceType: newVnd.serviceType,
+        PricePerService: newVnd.pricePerService,
+        IsActive: true
+      });
+      if (vendorError) throw vendorError;
 
       setVendors(prev => [newVnd, ...prev]);
       setSuccess(`Vendor "${rf.name}" listed successfully in Sri Lanka directory.`);

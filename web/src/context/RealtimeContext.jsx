@@ -9,10 +9,10 @@
  *
  * All pages consume `useRealtime()` — no page subscribes independently.
  * On any DB change, the context merges the delta into its state and also
- * re-syncs localStorage so the local fallback stays consistent.
+ * keeps dashboard state synchronized with Supabase.
  */
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { supabase, SAMPLE_EVENTS, SAMPLE_VENUES } from "../api/supabase.js";
+import { supabase } from "../api/supabase.js";
 import { api } from "../api/client.js";
 
 const RealtimeContext = createContext(null);
@@ -88,76 +88,77 @@ export function RealtimeProvider({ children }) {
 
   // ─── Initial data load ─────────────────────────────────────────────────────
   const loadInitialData = useCallback(async () => {
-    // 1. Events — Fetch directly from Supabase first, fallback to API and localStorage
+    // 1. Events — Supabase first, then the API backed by the same database.
     try {
-      const { data: dbEvents, error: sbErr } = await supabase
-        .from("Events")
-        .select("*")
-        .order("CreatedAt", { ascending: false });
+      const dbEvents = [];
+      let sbErr = null;
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from("Events")
+          .select("*")
+          .order("CreatedAt", { ascending: false })
+          .range(from, from + 999);
+        if (error) { sbErr = error; break; }
+        dbEvents.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
 
-      if (!sbErr && dbEvents && dbEvents.length > 0) {
+      if (!sbErr && dbEvents) {
         const mapped = dbEvents.map(mapEvent);
-        const sampleFiltered = SAMPLE_EVENTS.filter(se => !mapped.some(me => me.id === se.id));
-        const finalEvents = [...mapped, ...sampleFiltered];
-        setEvents(finalEvents);
-        localStorage.setItem("ef_events", JSON.stringify(finalEvents));
+        setEvents(mapped);
+        localStorage.setItem("ef_events", JSON.stringify(mapped));
       } else {
         try {
-          const res = await api.listEvents({ pageSize: 200 });
-          const items = res?.items ?? res ?? [];
-          const mapped = items.length > 0 ? items.map(mapEvent) : SAMPLE_EVENTS;
+          let page = 1;
+          let items = [];
+          let total = Infinity;
+          while (items.length < total) {
+            const res = await api.listEvents({ page, pageSize: 200 });
+            const pageItems = res?.items ?? res ?? [];
+            items = items.concat(pageItems);
+            total = res?.total ?? (pageItems.length < 200 ? items.length : Infinity);
+            if (pageItems.length < 200) break;
+            page += 1;
+          }
+          const mapped = items.map(mapEvent);
           setEvents(mapped);
           localStorage.setItem("ef_events", JSON.stringify(mapped));
         } catch {
-          const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
-          setEvents(saved.length > 0 ? saved : SAMPLE_EVENTS);
+          setEvents([]);
+          localStorage.setItem("ef_events", "[]");
         }
       }
     } catch {
-      try {
-        const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
-        setEvents(saved.length > 0 ? saved : SAMPLE_EVENTS);
-      } catch {
-        setEvents(SAMPLE_EVENTS);
-      }
+      setEvents([]);
+      localStorage.setItem("ef_events", "[]");
     }
 
-    // 2. Venues — Fetch directly from Supabase first, fallback to API and localStorage
+    // 2. Venues — load authoritative records from Supabase
     try {
       const { data: dbVenues, error: vErr } = await supabase
         .from("Venues")
         .select("*")
         .order("CreatedAt", { ascending: false });
 
-      if (!vErr && dbVenues && dbVenues.length > 0) {
+      if (!vErr && dbVenues) {
         const mapped = dbVenues.map(mapVenue);
-        const sampleFiltered = SAMPLE_VENUES.filter(sv => !mapped.some(mv => mv.id === sv.id));
-        const finalVenues = [...mapped, ...sampleFiltered];
-        setVenues(finalVenues);
-        localStorage.setItem("ef_venues", JSON.stringify(finalVenues));
+        setVenues(mapped);
+        localStorage.setItem("ef_venues", JSON.stringify(mapped));
       } else {
         try {
           const res = await api.searchVenues({ pageSize: 200 });
           const items = res?.items ?? res ?? [];
-          const mapped = items.length > 0 ? items.map(mapVenue) : SAMPLE_VENUES;
+          const mapped = items.map(mapVenue);
           setVenues(mapped);
           localStorage.setItem("ef_venues", JSON.stringify(mapped));
         } catch {
-          const custom = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-          const saved = JSON.parse(localStorage.getItem("ef_venues") || "[]");
-          const merged = [...custom, ...SAMPLE_VENUES.filter(sv => !custom.some(cv => cv.id === sv.id))];
-          setVenues(saved.length > 0 ? saved : merged);
+          setVenues([]);
+          localStorage.setItem("ef_venues", "[]");
         }
       }
     } catch {
-      try {
-        const custom = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-        const saved = JSON.parse(localStorage.getItem("ef_venues") || "[]");
-        const merged = [...custom, ...SAMPLE_VENUES.filter(sv => !custom.some(cv => cv.id === sv.id))];
-        setVenues(saved.length > 0 ? saved : merged);
-      } catch {
-        setVenues(SAMPLE_VENUES);
-      }
+      setVenues([]);
+      localStorage.setItem("ef_venues", "[]");
     }
   }, []);
 
@@ -264,28 +265,8 @@ export function RealtimeProvider({ children }) {
 
     channelRef.current = channel;
 
-    // Catch same-tab legacy localStorage writes (from old code paths)
-    const handleStorage = (e) => {
-      if (e.key === "ef_events") {
-        try {
-          const parsed = JSON.parse(e.newValue || "[]");
-          if (parsed.length > 0) setEvents(parsed);
-        } catch {}
-      }
-      if (e.key === "ef_registered_venues" || e.key === "ef_venues") {
-        try {
-          const custom = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-          const base = JSON.parse(localStorage.getItem("ef_venues") || "[]");
-          const merged = [...custom, ...base.filter(b => !custom.some(c => c.id === b.id))];
-          if (merged.length > 0) setVenues(merged);
-        } catch {}
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-
     return () => {
       supabase.removeChannel(channel);
-      window.removeEventListener("storage", handleStorage);
     };
   }, [loadInitialData, addToast]);
 

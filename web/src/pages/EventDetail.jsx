@@ -7,7 +7,7 @@ import {
   IcCalendar, IcMapPin, IcUsers, IcArrowLeft, IcClock, IcTicket,
   IcCheckCircle, IcCompass, IcPlus, IcX, IcUser, IcShield
 } from "../components/Icons.jsx";
-import { supabase, SAMPLE_EVENTS, SAMPLE_VENUES, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 import VenueMap from "../components/VenueMap.jsx";
 import QRCodeVisual from "../components/QRCodeVisual.jsx";
 
@@ -25,7 +25,7 @@ export default function EventDetail() {
   const navigate = useNavigate();
 
   // ── Primary source: live events from Realtime context ──────────────────────
-  const { events: liveEvents } = useRealtime();
+  const { events: liveEvents, venues } = useRealtime();
 
   const [event, setEvent] = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
@@ -48,19 +48,9 @@ export default function EventDetail() {
       setEvent(liveEvent);
       return;
     }
-    // Fallback: check localStorage, then API, then SAMPLE_EVENTS
-    try {
-      const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
-      const foundSaved = saved.find(e => e.id === id);
-      if (foundSaved) { setEvent(foundSaved); return; }
-    } catch {}
-
     api.getEvent(id)
       .then(res => setEvent(res))
-      .catch(() => {
-        const found = SAMPLE_EVENTS.find(e => e.id === id) || SAMPLE_EVENTS[0];
-        setEvent(found);
-      });
+      .catch(() => setEvent(null));
   }, [id, liveEvents]);
 
   // Open booking modal for a tier
@@ -239,7 +229,7 @@ export default function EventDetail() {
           organizerId: event.organizerId || "00000000-0000-0000-0000-0000000000aa",
           attendeeId: user?.id || user?.email || "00000000-0000-0000-0000-000000000001",
           attendeeName: attendeeDetails[0]?.name || user?.name || "Attendee",
-          attendeeEmail: attendeeDetails[0]?.email || user?.email || "attendee@demo.com",
+          attendeeEmail: attendeeDetails[0]?.email || user?.email || "",
           attendeeNic: attendeeDetails[0]?.idNumber || user?.nic || "199878901234",
           attendeeContact: attendeeDetails[0]?.contact || user?.contact || "+94 77 123 4567",
           totalAmount: totalBookingAmount,
@@ -355,7 +345,7 @@ export default function EventDetail() {
   const end   = new Date(event.endDate || Date.now() + 7200000);
   const hrs   = Math.max(1, Math.round((end - start) / 3600000));
 
-  const venueLocation = SAMPLE_VENUES.find(v => v.id === event.venueId) || {
+  const venueLocation = venues.find(v => v.id === event.venueId) || {
     id: "ven-lk-loc",
     name: event.location?.split(",")[0] || "Sri Lanka Event Venue",
     location: event.location || "Colombo, Sri Lanka",
@@ -1063,22 +1053,6 @@ export default function EventDetail() {
                               </label>
                             </div>
 
-                            {/* Demo Sample Slip helper */}
-                            <button
-                              type="button"
-                              onClick={() => setPaymentSlip("https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=800&auto=format&fit=crop&q=80")}
-                              style={{
-                                marginTop: 8,
-                                background: "none",
-                                border: "none",
-                                color: "#60a5fa",
-                                fontSize: 11,
-                                cursor: "pointer",
-                                textDecoration: "underline"
-                              }}
-                            >
-                              💡 Attach sample verified ComBank deposit slip (for quick testing)
-                            </button>
                           </div>
                         )}
                       </div>

@@ -74,14 +74,7 @@ def search_venues(capacity: int, location: Optional[str] = None) -> List[Dict[st
         print(f"[DomainAnalysisAgent] Supabase venues fetch warning: {err}")
 
     if not venues:
-        venues = [
-            {"venueId": "ven-lk-001", "id": "ven-lk-001", "name": "BMICH - Bandaranaike Memorial Hall", "capacity": 3500, "price_per_hour": 85000, "PricePerHour": 85000, "location": "Colombo"},
-            {"venueId": "ven-lk-002", "id": "ven-lk-002", "name": "Nelum Pokuna Mahinda Rajapaksa Theatre", "capacity": 1288, "price_per_hour": 120000, "PricePerHour": 120000, "location": "Colombo"},
-            {"venueId": "ven-lk-003", "id": "ven-lk-003", "name": "Port City Marina Promenade & Pavilion", "capacity": 4500, "price_per_hour": 150000, "PricePerHour": 150000, "location": "Colombo"},
-            {"venueId": "ven-lk-004", "id": "ven-lk-004", "name": "The Grand Kandyan Convention Center", "capacity": 1500, "price_per_hour": 65000, "PricePerHour": 65000, "location": "Kandy"},
-            {"venueId": "ven-lk-005", "id": "ven-lk-005", "name": "Jetwing Lighthouse Ocean Pavilion", "capacity": 950, "price_per_hour": 75000, "PricePerHour": 75000, "location": "Galle"},
-            {"venueId": "ven-lk-006", "id": "ven-lk-006", "name": "Waters Edge Grand Ballroom & Parkland", "capacity": 2200, "price_per_hour": 95000, "PricePerHour": 95000, "location": "Battaramulla"},
-        ]
+        print("[DomainAnalysisAgent] No venues retrieved from Supabase.")
 
     fitting = [v for v in venues if v["capacity"] >= capacity]
     if not fitting:
@@ -118,13 +111,7 @@ def search_vendors(service_type: Optional[str] = None) -> List[Dict[str, Any]]:
         print(f"[DomainAnalysisAgent] Supabase vendors fetch warning: {err}")
 
     if not vendors:
-        vendors = [
-            {"id": "vnd-lk-001", "name": "Ceylon Sound & Stage Dynamics", "service_type": "Audio/Visual", "price_per_service": 350000},
-            {"id": "vnd-lk-002", "name": "Spice Symphony Haute Sri Lankan Catering", "service_type": "Catering", "price_per_service": 280000},
-            {"id": "vnd-lk-003", "name": "Lanka Cinematic 8K & Aerial Drone Media", "service_type": "Photography", "price_per_service": 195000},
-            {"id": "vnd-lk-004", "name": "Lion Guard Executive Protocol & Security", "service_type": "Security", "price_per_service": 140000},
-            {"id": "vnd-lk-005", "name": "Lotus & Fern Botanical Stage Styling", "service_type": "Decoration", "price_per_service": 220000},
-        ]
+        print("[DomainAnalysisAgent] No vendors retrieved from Supabase.")
 
     if service_type:
         matched = [v for v in vendors if service_type.lower() in v["service_type"].lower()]
