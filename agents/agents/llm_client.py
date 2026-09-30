@@ -59,7 +59,12 @@ def call_llm(
             from google import genai
             client = genai.Client(api_key=GEMINI_API_KEY)
             full_prompt = f"{system_prompt}\n\n{prompt}"
-            for m in [GEMINI_MODEL, "gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
+            gemini_candidates = [m for m in [GEMINI_MODEL, "gemini-2.5-flash"] if m]
+            seen_g = set()
+            for m in gemini_candidates:
+                if m in seen_g:
+                    continue
+                seen_g.add(m)
                 try:
                     res = client.models.generate_content(model=m, contents=full_prompt)
                     if res and res.text:
@@ -81,7 +86,12 @@ def call_llm(
         try:
             from groq import Groq
             client = Groq(api_key=GROQ_API_KEY)
-            for m in [GROQ_MODEL, "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
+            groq_candidates = [m for m in [GROQ_MODEL, "openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b"] if m]
+            seen_q = set()
+            for m in groq_candidates:
+                if m in seen_q:
+                    continue
+                seen_q.add(m)
                 try:
                     chat = client.chat.completions.create(
                         messages=[

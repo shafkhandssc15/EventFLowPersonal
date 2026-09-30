@@ -64,10 +64,13 @@ Generate JSON with:
 
 Return STRICT JSON ONLY:"""
 
+    import hashlib
+    obj_hash = hashlib.md5(str(objective).strip().lower().encode()).hexdigest()[:8]
+
     raw_response, engine_name = call_llm(
         prompt,
         system_prompt="You are an expert AI event coordinator. Provide structured JSON only; do not make approval decisions.",
-        cache_key=f"planner_{capacity}_{int(budget)}_{location}"
+        cache_key=f"planner_{obj_hash}_{capacity}_{int(budget)}_{location}"
     )
 
     parsed = parse_json_from_llm(raw_response) if raw_response else None
