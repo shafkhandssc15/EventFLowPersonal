@@ -182,7 +182,7 @@ export default function AuthPage() {
                 }
               });
 
-              if (matchedReq && matchedReq.Status === "Pending") {
+              if (matchedReq && (matchedReq.Status === "Pending" || matchedReq.Status === "PendingAdminApproval")) {
                 const parsed = JSON.parse(matchedReq.Reason || "{}");
                 setPendingModal({
                   name: parsed.name || uRow.Name || cleanEmail,
@@ -250,7 +250,7 @@ export default function AuthPage() {
                 }
               });
 
-              if (matchedReq && matchedReq.Status === "Pending") {
+              if (matchedReq && (matchedReq.Status === "Pending" || matchedReq.Status === "PendingAdminApproval")) {
                 const parsed = JSON.parse(matchedReq.Reason || "{}");
                 setPendingModal({
                   name: parsed.name || userMeta.name || email,
@@ -287,9 +287,31 @@ export default function AuthPage() {
       );
 
       if (registeredMatch) {
-        if (registeredMatch.role !== "Attendee" && registeredMatch.role !== "Admin" && !registeredMatch.isApproved) {
-          setPendingModal(registeredMatch);
-          throw new Error(`Your ${registeredMatch.role === "VendorVenueManager" ? "Vendor / Venue" : registeredMatch.role} account is pending Admin Verification.`);
+        if (registeredMatch.role !== "Attendee" && registeredMatch.role !== "Admin") {
+          try {
+            const { data: dbReqs } = await supabase
+              .from("ApprovalRequests")
+              .select("*")
+              .order("CreatedAt", { ascending: false });
+
+            if (dbReqs && dbReqs.length > 0) {
+              const matchedReq = dbReqs.find(r => {
+                try {
+                  const p = JSON.parse(r.Reason || "{}");
+                  return (p.email || p.applicantEmail || "").toLowerCase().trim() === cleanEmail;
+                } catch {
+                  return false;
+                }
+              });
+
+              if (matchedReq && (matchedReq.Status === "Pending" || matchedReq.Status === "PendingAdminApproval")) {
+                setPendingModal(registeredMatch);
+                throw new Error(`Your ${registeredMatch.role === "VendorVenueManager" ? "Vendor / Venue" : registeredMatch.role} account is pending Admin Verification.`);
+              }
+            }
+          } catch (appErr) {
+            if (appErr.message?.includes("pending")) throw appErr;
+          }
         }
 
         login({

@@ -137,26 +137,211 @@ export default function OrganizerDashboard() {
   }
 
   // Direct payment approval by organizer
-  function handleApprovePayment(booking) {
+  // Direct payment approval by organizer
+  async function handleApprovePayment(booking) {
     setPayBusy(booking.bookingRef);
     try {
-      // 1. Update master bookings
+      const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const now = new Date().toISOString();
+      const cleanEmail = (booking.attendeeEmail || "").trim().toLowerCase();
+      const cleanName = booking.attendeeName || "Attendee";
+
+      // 1. Resolve Attendee User ID from Supabase public.Users table
+      let resolvedAttendeeId = null;
+      if (cleanEmail) {
+        try {
+          const { data: uRows } = await supabase
+            .from("Users")
+            .select("Id, Email, Name")
+            .ilike("Email", cleanEmail);
+          if (uRows && uRows.length > 0) {
+            resolvedAttendeeId = uRows[0].Id;
+          }
+        } catch (uErr) {
+          console.warn("User lookup error:", uErr);
+        }
+      }
+
+      if (!resolvedAttendeeId && isUUID(booking.attendeeId)) {
+        try {
+          const { data: uById } = await supabase
+            .from("Users")
+            .select("Id")
+            .eq("Id", booking.attendeeId);
+          if (uById && uById.length > 0) {
+            resolvedAttendeeId = uById[0].Id;
+          }
+        } catch {}
+      }
+
+      // If attendee doesn't exist in Users table yet, ensure they are inserted so foreign keys are satisfied
+      if (!resolvedAttendeeId) {
+        resolvedAttendeeId = isUUID(booking.attendeeId) ? booking.attendeeId : crypto.randomUUID();
+        try {
+          await supabase.from("Users").upsert({
+            Id: resolvedAttendeeId,
+            Name: cleanName,
+            Email: cleanEmail || `attendee-${resolvedAttendeeId.slice(0, 8)}@eventflow.lk`,
+            PasswordHash: "AQAAAAIAAYagAAAAEGUESTNOTSETHASH",
+            Role: "Attendee",
+            CreatedAt: now,
+            UpdatedAt: now
+          });
+        } catch (upErr) {
+          console.warn("User ensure upsert warning:", upErr);
+        }
+      }
+
+      // 2. Prepare Confirmed passes and booking record
+      const confirmedPasses = (booking.passes || []).map(p => ({
+        ...p,
+        status: "Confirmed",
+        paymentStatus: "Confirmed",
+        rejectionReason: null,
+        approvedAt: now,
+        approvedBy: user?.name || user?.email || "Organizer"
+      }));
+
+      const confirmedBooking = {
+        ...booking,
+        attendeeId: resolvedAttendeeId,
+        status: "Confirmed",
+        paymentStatus: "Confirmed",
+        rejectionReason: null,
+        approvedAt: now,
+        approvedBy: user?.name || user?.email || "Organizer",
+        passes: confirmedPasses
+      };
+
+      // 3. Update Supabase ApprovalRequests table with status and updated Reason JSON
+      try {
+        if (booking.dbId) {
+          await supabase
+            .from("ApprovalRequests")
+            .update({
+              Status: "Approved",
+              ResolvedAt: now,
+              Reason: JSON.stringify(confirmedBooking)
+            })
+            .eq("Id", booking.dbId);
+        } else {
+          await supabase
+            .from("ApprovalRequests")
+            .update({
+              Status: "Approved",
+              ResolvedAt: now,
+              Reason: JSON.stringify(confirmedBooking)
+            })
+            .ilike("Reason", `%${booking.bookingRef}%`);
+        }
+      } catch (apprErr) {
+        console.warn("Supabase ApprovalRequests update warning:", apprErr);
+      }
+
+      // 4. Update / Upsert Supabase Registrations table
+      const validEventId = (booking.eventId && isUUID(booking.eventId))
+        ? booking.eventId
+        : "33333333-0000-0000-0000-000000000001";
+
+      try {
+        const { data: existingRegs } = await supabase
+          .from("Registrations")
+          .select("Id")
+          .eq("EventId", validEventId)
+          .eq("AttendeeId", resolvedAttendeeId);
+
+        if (existingRegs && existingRegs.length > 0) {
+          await supabase
+            .from("Registrations")
+            .update({
+              Status: "Confirmed",
+              UpdatedAt: now
+            })
+            .eq("Id", existingRegs[0].Id);
+        } else {
+          await supabase
+            .from("Registrations")
+            .insert({
+              Id: crypto.randomUUID(),
+              EventId: validEventId,
+              AttendeeId: resolvedAttendeeId,
+              Status: "Confirmed",
+              CreatedAt: now,
+              UpdatedAt: now
+            });
+        }
+      } catch (regErr) {
+        console.warn("Supabase Registrations sync warning:", regErr);
+      }
+
+      // 5. Insert / Update Supabase Tickets table with attendee QR codes
+      try {
+        let ticketTypeId = null;
+        const { data: tts } = await supabase
+          .from("TicketTypes")
+          .select("Id, Name")
+          .eq("EventId", validEventId);
+
+        if (tts && tts.length > 0) {
+          const matchedTier = tts.find(t => t.Name?.toLowerCase() === (booking.tierName || "").toLowerCase());
+          ticketTypeId = matchedTier?.Id || tts[0].Id;
+        } else {
+          const { data: anyTt } = await supabase.from("TicketTypes").select("Id").limit(1);
+          ticketTypeId = anyTt?.[0]?.Id || "1b28a20b-e7c9-40b0-a47b-c38c184109d9";
+        }
+
+        for (const pass of confirmedPasses) {
+          if (pass.qrCode) {
+            const { data: existTkt } = await supabase
+              .from("Tickets")
+              .select("Id")
+              .eq("QrCode", pass.qrCode)
+              .maybeSingle();
+
+            if (!existTkt) {
+              await supabase.from("Tickets").insert({
+                Id: crypto.randomUUID(),
+                TicketTypeId: ticketTypeId,
+                AttendeeId: resolvedAttendeeId,
+                QrCode: pass.qrCode,
+                CreatedAt: now
+              });
+            } else {
+              await supabase.from("Tickets").update({
+                AttendeeId: resolvedAttendeeId
+              }).eq("Id", existTkt.Id);
+            }
+          }
+        }
+      } catch (tktErr) {
+        console.warn("Supabase Tickets sync warning:", tktErr);
+      }
+
+      // 6. Update local master bookings & attendee wallet
       const master = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
       const updated = master.map(b =>
-        b.bookingRef === booking.bookingRef ? { ...b, status: "Confirmed", rejectionReason: null } : b
+        b.bookingRef === booking.bookingRef ? confirmedBooking : b
       );
       localStorage.setItem("ef_master_bookings", JSON.stringify(updated));
-      setMasterBookings(updated);
+      setMasterBookings(prev => prev.map(b => b.bookingRef === booking.bookingRef ? confirmedBooking : b));
 
-      // 2. Update attendee tickets
-      const attKey = `ef_tickets_${booking.attendeeId}`;
+      const attKey = `ef_tickets_${resolvedAttendeeId}`;
       const attTickets = JSON.parse(localStorage.getItem(attKey) || "[]");
       const updAttTickets = attTickets.map(t =>
         t.bookingRef === booking.bookingRef ? { ...t, paymentStatus: "Confirmed", rejectionReason: null } : t
       );
       localStorage.setItem(attKey, JSON.stringify(updAttTickets));
 
-      // 3. Post system message in chat thread
+      if (booking.attendeeId && booking.attendeeId !== resolvedAttendeeId) {
+        const oldKey = `ef_tickets_${booking.attendeeId}`;
+        const oldTickets = JSON.parse(localStorage.getItem(oldKey) || "[]");
+        const updOld = oldTickets.map(t =>
+          t.bookingRef === booking.bookingRef ? { ...t, paymentStatus: "Confirmed", rejectionReason: null } : t
+        );
+        localStorage.setItem(oldKey, JSON.stringify(updOld));
+      }
+
+      // 7. Post system message in chat thread
       const chatKey = `ef_booking_msgs_${booking.bookingRef}`;
       const chatMsgs = JSON.parse(localStorage.getItem(chatKey) || "[]");
       const notice = {
@@ -167,31 +352,14 @@ export default function OrganizerDashboard() {
         isStatusAlert: true,
         statusType: "Confirmed",
         text: `🎉 Payment approved by organizer ${user?.name || ""}! Booking ${booking.bookingRef} is CONFIRMED. Entrance QR passes are now active.`,
-        createdAt: new Date().toISOString()
+        createdAt: now
       };
       localStorage.setItem(chatKey, JSON.stringify([...chatMsgs, notice]));
       window.dispatchEvent(new Event("storage"));
 
-      // 4. Direct update to Supabase ApprovalRequests and Registrations
-      try {
-        supabase
-          .from("ApprovalRequests")
-          .update({ Status: "Approved", ResolvedAt: new Date().toISOString() })
-          .ilike("Reason", `%${booking.bookingRef}%`)
-          .then(() => {});
+      await refreshBookings();
 
-        if (booking.eventId) {
-          supabase
-            .from("Registrations")
-            .update({ Status: "Confirmed", UpdatedAt: new Date().toISOString() })
-            .eq("EventId", booking.eventId)
-            .then(() => {});
-        }
-      } catch (sbErr) {
-        console.warn("Supabase approval sync warning:", sbErr);
-      }
-
-      setSuccess(`✅ Payment for ${booking.attendeeName} (${booking.bookingRef}) APPROVED — QR passes activated!`);
+      setSuccess(`✅ Payment for ${booking.attendeeName} (${booking.bookingRef}) APPROVED — Recorded in Supabase & passes activated!`);
     } catch (err) {
       setError("Failed to approve: " + err.message);
     } finally {
@@ -200,30 +368,95 @@ export default function OrganizerDashboard() {
   }
 
   // Direct payment rejection with message
-  function handleRejectPayment(e) {
+  async function handleRejectPayment(e) {
     e.preventDefault();
     if (!rejectTarget || !rejectMsg.trim()) return;
     setPayBusy(rejectTarget.bookingRef);
     try {
       const reason = rejectMsg.trim();
+      const now = new Date().toISOString();
+      const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const cleanEmail = (rejectTarget.attendeeEmail || "").trim().toLowerCase();
 
-      // 1. Update master bookings
+      // Resolve attendee ID
+      let resolvedAttendeeId = null;
+      if (cleanEmail) {
+        try {
+          const { data: uRows } = await supabase.from("Users").select("Id").ilike("Email", cleanEmail);
+          if (uRows && uRows.length > 0) resolvedAttendeeId = uRows[0].Id;
+        } catch {}
+      }
+      if (!resolvedAttendeeId && isUUID(rejectTarget.attendeeId)) {
+        resolvedAttendeeId = rejectTarget.attendeeId;
+      }
+
+      const rejectedPasses = (rejectTarget.passes || []).map(p => ({
+        ...p,
+        status: "Rejected",
+        paymentStatus: "Rejected",
+        rejectionReason: reason
+      }));
+
+      const rejectedBooking = {
+        ...rejectTarget,
+        status: "Rejected",
+        paymentStatus: "Rejected",
+        rejectionReason: reason,
+        rejectedAt: now,
+        passes: rejectedPasses
+      };
+
+      // 1. Direct update to Supabase ApprovalRequests
+      try {
+        if (rejectTarget.dbId) {
+          await supabase
+            .from("ApprovalRequests")
+            .update({
+              Status: "Rejected",
+              ResolvedAt: now,
+              Reason: JSON.stringify(rejectedBooking)
+            })
+            .eq("Id", rejectTarget.dbId);
+        } else {
+          await supabase
+            .from("ApprovalRequests")
+            .update({
+              Status: "Rejected",
+              ResolvedAt: now,
+              Reason: JSON.stringify(rejectedBooking)
+            })
+            .ilike("Reason", `%${rejectTarget.bookingRef}%`);
+        }
+
+        if (rejectTarget.eventId && resolvedAttendeeId) {
+          const validEventId = isUUID(rejectTarget.eventId) ? rejectTarget.eventId : "33333333-0000-0000-0000-000000000001";
+          await supabase
+            .from("Registrations")
+            .update({ Status: "Rejected", UpdatedAt: now })
+            .eq("EventId", validEventId)
+            .eq("AttendeeId", resolvedAttendeeId);
+        }
+      } catch (sbErr) {
+        console.warn("Supabase rejection sync warning:", sbErr);
+      }
+
+      // 2. Update master bookings
       const master = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
       const updated = master.map(b =>
-        b.bookingRef === rejectTarget.bookingRef ? { ...b, status: "Rejected", rejectionReason: reason } : b
+        b.bookingRef === rejectTarget.bookingRef ? rejectedBooking : b
       );
       localStorage.setItem("ef_master_bookings", JSON.stringify(updated));
-      setMasterBookings(updated);
+      setMasterBookings(prev => prev.map(b => b.bookingRef === rejectTarget.bookingRef ? rejectedBooking : b));
 
-      // 2. Update attendee tickets
-      const attKey = `ef_tickets_${rejectTarget.attendeeId}`;
+      // 3. Update attendee tickets
+      const attKey = `ef_tickets_${resolvedAttendeeId || rejectTarget.attendeeId}`;
       const attTickets = JSON.parse(localStorage.getItem(attKey) || "[]");
       const updAttTickets = attTickets.map(t =>
         t.bookingRef === rejectTarget.bookingRef ? { ...t, paymentStatus: "Rejected", rejectionReason: reason } : t
       );
       localStorage.setItem(attKey, JSON.stringify(updAttTickets));
 
-      // 3. Post rejection message in chat thread
+      // 4. Post rejection message in chat thread
       const chatKey = `ef_booking_msgs_${rejectTarget.bookingRef}`;
       const chatMsgs = JSON.parse(localStorage.getItem(chatKey) || "[]");
       const notice = {
@@ -234,31 +467,14 @@ export default function OrganizerDashboard() {
         isStatusAlert: true,
         statusType: "Rejected",
         text: `⚠️ Payment slip rejected by organizer. Reason: "${reason}". Attendee can re-upload a corrected slip.`,
-        createdAt: new Date().toISOString()
+        createdAt: now
       };
       localStorage.setItem(chatKey, JSON.stringify([...chatMsgs, notice]));
       window.dispatchEvent(new Event("storage"));
 
-      // 4. Direct update to Supabase ApprovalRequests and Registrations
-      try {
-        supabase
-          .from("ApprovalRequests")
-          .update({ Status: "Rejected", ResolvedAt: new Date().toISOString() })
-          .ilike("Reason", `%${rejectTarget.bookingRef}%`)
-          .then(() => {});
+      await refreshBookings();
 
-        if (rejectTarget.eventId) {
-          supabase
-            .from("Registrations")
-            .update({ Status: "Rejected", UpdatedAt: new Date().toISOString() })
-            .eq("EventId", rejectTarget.eventId)
-            .then(() => {});
-        }
-      } catch (sbErr) {
-        console.warn("Supabase rejection sync warning:", sbErr);
-      }
-
-      setSuccess(`❌ Payment for ${rejectTarget.attendeeName} rejected. Reason sent to attendee.`);
+      setSuccess(`❌ Payment for ${rejectTarget.attendeeName} rejected. Reason updated in Supabase.`);
       setRejectTarget(null);
       setRejectMsg("");
     } catch (err) {

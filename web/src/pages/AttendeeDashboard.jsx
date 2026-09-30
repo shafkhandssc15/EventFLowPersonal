@@ -37,24 +37,37 @@ export default function AttendeeDashboard() {
           .order("CreatedAt", { ascending: false });
         if (error) throw error;
 
+        const cleanUserId = user?.id;
+        const cleanUserEmail = (user?.email || "").trim().toLowerCase();
+        const cleanUserNic = (user?.nic || "").trim().toLowerCase();
+
         const mySupabasePasses = [];
         (dbRequests || []).forEach(req => {
             try {
-              const parsed = JSON.parse(req.Reason);
-              const isMine = (user?.id && parsed.attendeeId === user.id) ||
-                (user?.email && parsed.attendeeEmail && parsed.attendeeEmail.toLowerCase() === user.email.toLowerCase());
+              const parsed = JSON.parse(req.Reason || "{}");
+              const reqEmail = (parsed.attendeeEmail || "").trim().toLowerCase();
+              const reqNic = (parsed.attendeeNic || "").trim().toLowerCase();
+              const hasHolderEmail = Array.isArray(parsed.passes) && parsed.passes.some(p => (p.holderEmail || "").trim().toLowerCase() === cleanUserEmail);
+
+              const isMine =
+                (cleanUserId && parsed.attendeeId === cleanUserId) ||
+                (cleanUserEmail && reqEmail === cleanUserEmail) ||
+                (cleanUserEmail && hasHolderEmail) ||
+                (cleanUserNic && reqNic && (reqNic.includes(cleanUserNic) || cleanUserNic.includes(reqNic)));
 
               if (isMine) {
-                const currentStatus = req.Status === "Approved"
+                const currentStatus = (req.Status === "Approved" || parsed.status === "Confirmed")
                   ? "Confirmed"
-                  : (req.Status === "Rejected" ? "Rejected" : "PendingApproval");
+                  : ((req.Status === "Rejected" || parsed.status === "Rejected") ? "Rejected" : "PendingApproval");
 
                 const updatedPasses = (parsed.passes || []).map(p => ({
                   ...p,
                   approvalRequestId: req.Id,
                   status: currentStatus,
                   paymentStatus: currentStatus,
-                  rejectionReason: req.Status === "Rejected" ? (parsed.rejectionReason || "Payment slip rejected by organizer") : null
+                  rejectionReason: (req.Status === "Rejected" || parsed.status === "Rejected")
+                    ? (parsed.rejectionReason || "Payment slip rejected by organizer")
+                    : null
                 }));
 
                 mySupabasePasses.push(...updatedPasses);
@@ -72,10 +85,16 @@ export default function AttendeeDashboard() {
 
     loadAttendeePasses();
 
-    // Subscribe to real-time changes on ApprovalRequests so organizer approval immediately reflects
+    // Subscribe to real-time changes on ApprovalRequests, Registrations, and Tickets so organizer approvals immediately reflect
     const channel = supabase
       .channel("attendee-approvals-channel")
       .on("postgres_changes", { event: "*", schema: "public", table: "ApprovalRequests" }, () => {
+        loadAttendeePasses();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "Registrations" }, () => {
+        loadAttendeePasses();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "Tickets" }, () => {
         loadAttendeePasses();
       })
       .subscribe();
@@ -90,14 +109,37 @@ export default function AttendeeDashboard() {
     try {
       const { data, error } = await supabase.from("ApprovalRequests").select("*").order("CreatedAt", { ascending: false });
       if (error) throw error;
+      const cleanUserId = user?.id;
+      const cleanUserEmail = (user?.email || "").trim().toLowerCase();
+      const cleanUserNic = (user?.nic || "").trim().toLowerCase();
+
       const passes = (data || []).flatMap(req => {
         try {
           const parsed = JSON.parse(req.Reason || "{}");
-          const isMine = (user?.id && parsed.attendeeId === user.id) ||
-            (user?.email && parsed.attendeeEmail?.toLowerCase() === user.email.toLowerCase());
+          const reqEmail = (parsed.attendeeEmail || "").trim().toLowerCase();
+          const reqNic = (parsed.attendeeNic || "").trim().toLowerCase();
+          const hasHolderEmail = Array.isArray(parsed.passes) && parsed.passes.some(p => (p.holderEmail || "").trim().toLowerCase() === cleanUserEmail);
+
+          const isMine =
+            (cleanUserId && parsed.attendeeId === cleanUserId) ||
+            (cleanUserEmail && reqEmail === cleanUserEmail) ||
+            (cleanUserEmail && hasHolderEmail) ||
+            (cleanUserNic && reqNic && (reqNic.includes(cleanUserNic) || cleanUserNic.includes(reqNic)));
+
           if (!isMine) return [];
-          const status = req.Status === "Approved" ? "Confirmed" : req.Status === "Rejected" ? "Rejected" : "PendingApproval";
-          return (parsed.passes || []).map(pass => ({ ...pass, approvalRequestId: req.Id, status, paymentStatus: status }));
+          const status = (req.Status === "Approved" || parsed.status === "Confirmed")
+            ? "Confirmed"
+            : ((req.Status === "Rejected" || parsed.status === "Rejected") ? "Rejected" : "PendingApproval");
+
+          return (parsed.passes || []).map(pass => ({
+            ...pass,
+            approvalRequestId: req.Id,
+            status,
+            paymentStatus: status,
+            rejectionReason: (req.Status === "Rejected" || parsed.status === "Rejected")
+              ? (parsed.rejectionReason || "Payment slip rejected by organizer")
+              : null
+          }));
         } catch { return []; }
       });
       setTickets(passes);

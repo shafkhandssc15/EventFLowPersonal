@@ -250,8 +250,42 @@ export default function EventDetail() {
         try {
           const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
           const validEventId = isUUID(event.id) ? event.id : "33333333-0000-0000-0000-000000000001";
-          const validAttendeeId = (user?.id && isUUID(user.id)) ? user.id : "00000000-0000-0000-0000-000000000001";
           const now = new Date().toISOString();
+          const bookingEmail = (attendeeDetails[0]?.email || user?.email || "").trim().toLowerCase();
+          const bookingName = attendeeDetails[0]?.name || user?.name || "Attendee";
+
+          // Resolve or ensure attendee user row exists in Supabase public.Users table
+          let validAttendeeId = (user?.id && isUUID(user.id)) ? user.id : null;
+          if (bookingEmail) {
+            try {
+              const { data: uRows } = await supabase
+                .from("Users")
+                .select("Id")
+                .ilike("Email", bookingEmail);
+              if (uRows && uRows.length > 0) {
+                validAttendeeId = uRows[0].Id;
+              }
+            } catch {}
+          }
+
+          if (!validAttendeeId) {
+            validAttendeeId = (user?.id && isUUID(user.id)) ? user.id : crypto.randomUUID();
+            try {
+              await supabase.from("Users").upsert({
+                Id: validAttendeeId,
+                Name: bookingName,
+                Email: bookingEmail || `attendee-${validAttendeeId.slice(0, 8)}@eventflow.lk`,
+                PasswordHash: "AQAAAAIAAYagAAAAEGUESTNOTSETHASH",
+                Role: "Attendee",
+                CreatedAt: now,
+                UpdatedAt: now
+              });
+            } catch (uErr) {
+              console.warn("[EventDetail] Supabase Users upsert warning:", uErr);
+            }
+          }
+
+          masterRecord.attendeeId = validAttendeeId;
 
           // 1. Insert into Registrations table
           await supabase.from("Registrations").insert({
@@ -270,6 +304,27 @@ export default function EventDetail() {
             Reason: JSON.stringify(masterRecord),
             CreatedAt: now
           });
+
+          // 3. If ticket is free/instant, also populate Tickets table
+          if (isFree) {
+            try {
+              const { data: tts } = await supabase.from("TicketTypes").select("Id").eq("EventId", validEventId).limit(1);
+              const ttId = tts?.[0]?.Id || "1b28a20b-e7c9-40b0-a47b-c38c184109d9";
+              for (const p of newPasses) {
+                if (p.qrCode) {
+                  await supabase.from("Tickets").insert({
+                    Id: crypto.randomUUID(),
+                    TicketTypeId: ttId,
+                    AttendeeId: validAttendeeId,
+                    QrCode: p.qrCode,
+                    CreatedAt: now
+                  });
+                }
+              }
+            } catch (tktErr) {
+              console.warn("[EventDetail] Tickets insert warning:", tktErr);
+            }
+          }
         } catch (sbErr) {
           console.warn("[EventDetail] Supabase booking sync warning:", sbErr);
         }
