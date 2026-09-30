@@ -346,38 +346,7 @@ export default function OrganizerDashboard() {
         ? booking.eventId
         : "33333333-0000-0000-0000-000000000001";
 
-      try {
-        const { data: existingRegs } = await supabase
-          .from("Registrations")
-          .select("Id")
-          .eq("EventId", validEventId)
-          .eq("AttendeeId", resolvedAttendeeId);
-
-        if (existingRegs && existingRegs.length > 0) {
-          await supabase
-            .from("Registrations")
-            .update({
-              Status: "Confirmed",
-              UpdatedAt: now
-            })
-            .eq("Id", existingRegs[0].Id);
-        } else {
-          await supabase
-            .from("Registrations")
-            .insert({
-              Id: crypto.randomUUID(),
-              EventId: validEventId,
-              AttendeeId: resolvedAttendeeId,
-              Status: "Confirmed",
-              CreatedAt: now,
-              UpdatedAt: now
-            });
-        }
-      } catch (regErr) {
-        console.warn("Supabase Registrations sync warning:", regErr);
-      }
-
-      // 5. Insert / Update Supabase Tickets table with attendee QR codes
+      // 4 & 5. Insert / Update Supabase Tickets and Registrations table with attendee QR codes
       try {
         let ticketTypeId = null;
         const { data: tts } = await supabase
@@ -395,6 +364,7 @@ export default function OrganizerDashboard() {
 
         for (const pass of confirmedPasses) {
           if (pass.qrCode) {
+            let ticketId = crypto.randomUUID();
             const { data: existTkt } = await supabase
               .from("Tickets")
               .select("Id")
@@ -403,21 +373,46 @@ export default function OrganizerDashboard() {
 
             if (!existTkt) {
               await supabase.from("Tickets").insert({
-                Id: crypto.randomUUID(),
+                Id: ticketId,
                 TicketTypeId: ticketTypeId,
                 AttendeeId: resolvedAttendeeId,
                 QrCode: pass.qrCode,
                 CreatedAt: now
               });
             } else {
+              ticketId = existTkt.Id;
               await supabase.from("Tickets").update({
                 AttendeeId: resolvedAttendeeId
               }).eq("Id", existTkt.Id);
             }
+
+            // Ensure registration record with this TicketId exists
+            const { data: existReg } = await supabase
+              .from("Registrations")
+              .select("Id")
+              .eq("TicketId", ticketId)
+              .maybeSingle();
+
+            if (!existReg) {
+              await supabase.from("Registrations").insert({
+                Id: crypto.randomUUID(),
+                EventId: validEventId,
+                AttendeeId: resolvedAttendeeId,
+                TicketId: ticketId,
+                Status: "Confirmed",
+                CreatedAt: now,
+                UpdatedAt: now
+              });
+            } else {
+              await supabase.from("Registrations").update({
+                Status: "Confirmed",
+                UpdatedAt: now
+              }).eq("Id", existReg.Id);
+            }
           }
         }
       } catch (tktErr) {
-        console.warn("Supabase Tickets sync warning:", tktErr);
+        console.warn("Supabase Tickets/Registrations sync warning:", tktErr);
       }
 
       // 6. Update local master bookings & attendee wallet

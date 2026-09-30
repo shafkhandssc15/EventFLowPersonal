@@ -287,17 +287,7 @@ export default function EventDetail() {
 
           masterRecord.attendeeId = validAttendeeId;
 
-          // 1. Insert into Registrations table
-          await supabase.from("Registrations").insert({
-            Id: crypto.randomUUID(),
-            EventId: validEventId,
-            AttendeeId: validAttendeeId,
-            Status: initialStatus,
-            CreatedAt: now,
-            UpdatedAt: now
-          });
-
-          // 2. Insert into ApprovalRequests table (stores the slip data, organizer linkage, etc.)
+          // 1. Insert into ApprovalRequests table (stores the slip data, organizer linkage, etc.)
           await supabase.from("ApprovalRequests").insert({
             Id: crypto.randomUUID(),
             Status: isFree ? "Approved" : "PendingOrganizerApproval",
@@ -305,25 +295,36 @@ export default function EventDetail() {
             CreatedAt: now
           });
 
-          // 3. If ticket is free/instant, also populate Tickets table
-          if (isFree) {
-            try {
-              const { data: tts } = await supabase.from("TicketTypes").select("Id").eq("EventId", validEventId).limit(1);
-              const ttId = tts?.[0]?.Id || "1b28a20b-e7c9-40b0-a47b-c38c184109d9";
-              for (const p of newPasses) {
-                if (p.qrCode) {
-                  await supabase.from("Tickets").insert({
-                    Id: crypto.randomUUID(),
-                    TicketTypeId: ttId,
-                    AttendeeId: validAttendeeId,
-                    QrCode: p.qrCode,
-                    CreatedAt: now
-                  });
-                }
+          // 2. Create Tickets and Registrations records in Supabase
+          try {
+            const { data: tts } = await supabase.from("TicketTypes").select("Id").eq("EventId", validEventId).limit(1);
+            const ttId = tts?.[0]?.Id || "1b28a20b-e7c9-40b0-a47b-c38c184109d9";
+            for (const p of newPasses) {
+              if (p.qrCode) {
+                const ticketId = crypto.randomUUID();
+                const regId = crypto.randomUUID();
+
+                await supabase.from("Tickets").insert({
+                  Id: ticketId,
+                  TicketTypeId: ttId,
+                  AttendeeId: validAttendeeId,
+                  QrCode: p.qrCode,
+                  CreatedAt: now
+                });
+
+                await supabase.from("Registrations").insert({
+                  Id: regId,
+                  EventId: validEventId,
+                  AttendeeId: validAttendeeId,
+                  TicketId: ticketId,
+                  Status: initialStatus,
+                  CreatedAt: now,
+                  UpdatedAt: now
+                });
               }
-            } catch (tktErr) {
-              console.warn("[EventDetail] Tickets insert warning:", tktErr);
             }
+          } catch (tktErr) {
+            console.warn("[EventDetail] Tickets/Registrations insert warning:", tktErr);
           }
         } catch (sbErr) {
           console.warn("[EventDetail] Supabase booking sync warning:", sbErr);
