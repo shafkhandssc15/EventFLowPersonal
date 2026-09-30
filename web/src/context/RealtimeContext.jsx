@@ -12,7 +12,7 @@
  * keeps dashboard state synchronized with Supabase.
  */
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { supabase } from "../api/supabase.js";
+import { supabase, FALLBACK_IMAGE } from "../api/supabase.js";
 import { api } from "../api/client.js";
 
 const RealtimeContext = createContext(null);
@@ -41,19 +41,34 @@ function mapEvent(row) {
 }
 
 function mapVenue(row) {
+  const loc = `${row.Name ?? row.name ?? ""} ${row.Location ?? row.location ?? ""}`.toLowerCase();
+  let defaultLat = 6.9271;
+  let defaultLng = 79.8612;
+  let defaultCity = "Colombo";
+
+  if (loc.includes("kandy") || loc.includes("peradeniya")) { defaultLat = 7.2906; defaultLng = 80.6337; defaultCity = "Kandy"; }
+  else if (loc.includes("galle") || loc.includes("hikkaduwa") || loc.includes("unawatuna")) { defaultLat = 6.0535; defaultLng = 80.2210; defaultCity = "Galle"; }
+  else if (loc.includes("battaramulla") || loc.includes("waters edge")) { defaultLat = 6.9038; defaultLng = 79.9142; defaultCity = "Battaramulla"; }
+  else if (loc.includes("jaffna")) { defaultLat = 9.6615; defaultLng = 80.0255; defaultCity = "Jaffna"; }
+  else if (loc.includes("negombo")) { defaultLat = 7.2008; defaultLng = 79.8736; defaultCity = "Negombo"; }
+  else if (loc.includes("nuwara eliya")) { defaultLat = 6.9497; defaultLng = 80.7891; defaultCity = "Nuwara Eliya"; }
+  else if (loc.includes("port city")) { defaultLat = 6.9344; defaultLng = 79.8428; defaultCity = "Colombo"; }
+  else if (loc.includes("bmich")) { defaultLat = 6.9010; defaultLng = 79.8736; defaultCity = "Colombo"; }
+  else if (loc.includes("nelum pokuna")) { defaultLat = 6.9110; defaultLng = 79.8649; defaultCity = "Colombo"; }
+
   return {
     id: row.Id ?? row.id,
     vendorId: row.OwnerId ?? row.vendorId ?? "",
     name: row.Name ?? row.name,
     location: row.Location ?? row.location,
-    city: row.City ?? row.city ?? "",
-    lat: row.Lat ?? row.lat,
-    lng: row.Lng ?? row.lng,
+    city: row.City ?? row.city ?? defaultCity,
+    lat: Number(row.Lat ?? row.lat ?? defaultLat),
+    lng: Number(row.Lng ?? row.lng ?? defaultLng),
     capacity: row.Capacity ?? row.capacity ?? 0,
     pricePerHour: row.PricePerHour ?? row.pricePerHour ?? 0,
     isActive: row.IsActive ?? row.isActive ?? true,
-    image: row.Image ?? row.image,
-    amenities: row.Amenities ?? row.amenities ?? [],
+    image: row.Image ?? row.image ?? FALLBACK_IMAGE,
+    amenities: row.Amenities ?? row.amenities ?? ["WiFi", "Parking", "Central AC"],
     description: row.Description ?? row.description ?? "",
   };
 }

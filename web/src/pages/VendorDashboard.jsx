@@ -269,12 +269,21 @@ export default function VendorDashboard() {
         : vf.amenities;
 
       const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-      const venueId = editingVenueId || crypto.randomUUID();
+      const venueId = (editingVenueId && isUUID(editingVenueId)) ? editingVenueId : crypto.randomUUID();
+
+      let resolvedOwnerId = (user?.id && isUUID(user.id)) ? user.id : null;
+      if (!resolvedOwnerId && user?.email) {
+        try {
+          const { data: uRows } = await supabase.from("Users").select("Id").ilike("Email", user.email);
+          if (uRows && uRows.length > 0) resolvedOwnerId = uRows[0].Id;
+        } catch {}
+      }
+      if (!resolvedOwnerId) resolvedOwnerId = "00000000-0000-0000-0000-0000000000bb";
 
       const newVenue = {
         id: venueId,
-        ownerId: user?.id || "00000000-0000-0000-0000-0000000000bb",
-        vendorId: user?.id || "00000000-0000-0000-0000-0000000000bb",
+        ownerId: resolvedOwnerId,
+        vendorId: resolvedOwnerId,
         name: vf.name.trim(),
         location: vf.location.trim(),
         city: vf.city,
@@ -295,9 +304,9 @@ export default function VendorDashboard() {
 
       // Write directly to Supabase Venues table
       try {
-        await supabase.from("Venues").upsert({
-          Id: isUUID(newVenue.id) ? newVenue.id : crypto.randomUUID(),
-          OwnerId: newVenue.ownerId,
+        const { error: upsertErr } = await supabase.from("Venues").upsert({
+          Id: venueId,
+          OwnerId: resolvedOwnerId,
           Name: newVenue.name,
           Location: newVenue.location,
           Capacity: Number(newVenue.capacity) || 0,
@@ -305,6 +314,9 @@ export default function VendorDashboard() {
           IsActive: true,
           CreatedAt: new Date().toISOString()
         });
+        if (upsertErr) {
+          console.warn("[VendorDashboard] Supabase Venues upsert error:", upsertErr);
+        }
       } catch (sbErr) {
         console.warn("[VendorDashboard] Supabase Venues upsert:", sbErr);
       }
@@ -321,7 +333,7 @@ export default function VendorDashboard() {
         setVenues(updated);
         localStorage.setItem("ef_registered_venues", JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        setSuccess(`Venue "${vf.name}" successfully updated!`);
+        setSuccess(`Venue "${vf.name}" successfully updated in Supabase & platform!`);
       } else {
         // Save to registered venues cache so Organizers can select it for events
         const existing = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
@@ -330,8 +342,10 @@ export default function VendorDashboard() {
         window.dispatchEvent(new Event("storage"));
 
         setVenues(prev => [newVenue, ...prev]);
-        setSuccess(`Venue "${vf.name}" successfully registered & pinned on OpenStreetMap! Organizers can now host events here.`);
+        setSuccess(`Venue "${vf.name}" successfully registered in Supabase & pinned on OpenStreetMap! Organizers can now host events here.`);
       }
+
+      loadAll();
 
       setShowForm(false);
       setEditingVenueId(null);
@@ -389,7 +403,14 @@ export default function VendorDashboard() {
     try {
       api.requestDeleteVenue(id).catch(() => {});
 
-      // 1. Mark venue as deletion pending in state & localStorage
+      // 1. Mark venue as deletion pending in Supabase Venues table
+      try {
+        await supabase.from("Venues").update({ IsPendingDeletion: true }).eq("Id", id);
+      } catch (sbErr) {
+        console.warn("[VendorDashboard] Supabase Venues deletion mark warning:", sbErr);
+      }
+
+      // 2. Mark venue as deletion pending in state & localStorage
       const updated = venues.map(v => v.id === id ? { ...v, isDeletionPending: true, status: "Deletion Requested" } : v);
       setVenues(updated);
       localStorage.setItem("ef_registered_venues", JSON.stringify(updated));

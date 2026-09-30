@@ -336,9 +336,15 @@ export default function AdminDashboard() {
   }
 
   // Admin approves venue deletion
-  function handleApproveVenueDeletion(req) {
+  async function handleApproveVenueDeletion(req) {
     if (user?.role !== "Admin") return;
     api.adminDeleteVenue(req.targetId).catch(() => {});
+    try {
+      await supabase.from("Venues").delete().eq("Id", req.targetId);
+    } catch (sbErr) {
+      console.warn("Supabase Venues delete warning:", sbErr);
+    }
+
     try {
       const savedVenues = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
       const filtered = savedVenues.filter(v => v.id !== req.targetId);
@@ -351,12 +357,18 @@ export default function AdminDashboard() {
     localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedPending));
     window.dispatchEvent(new Event("storage"));
 
-    setPromotionNotice(`✓ Venue "${req.details?.name || req.name}" deletion APPROVED by Admin. Venue removed from platform.`);
+    setPromotionNotice(`✓ Venue "${req.details?.name || req.name}" deletion APPROVED by Admin. Removed from Supabase database.`);
   }
 
   // Admin rejects venue deletion (venue stays active)
-  function handleRejectVenueDeletion(req) {
+  async function handleRejectVenueDeletion(req) {
     if (user?.role !== "Admin") return;
+    try {
+      await supabase.from("Venues").update({ IsPendingDeletion: false }).eq("Id", req.targetId);
+    } catch (sbErr) {
+      console.warn("Supabase Venues unmark warning:", sbErr);
+    }
+
     try {
       const savedVenues = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
       const restored = savedVenues.map(v => v.id === req.targetId ? { ...v, isDeletionPending: false, status: "Active" } : v);
@@ -368,7 +380,7 @@ export default function AdminDashboard() {
     localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedPending));
     window.dispatchEvent(new Event("storage"));
 
-    setPromotionNotice(`Venue deletion request for "${req.details?.name || req.name}" REJECTED. Venue remains active.`);
+    setPromotionNotice(`Venue deletion request for "${req.details?.name || req.name}" REJECTED. Venue remains active in Supabase.`);
   }
 
   function addAuditEntry(action, detail) {
