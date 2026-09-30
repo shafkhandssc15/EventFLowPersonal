@@ -193,7 +193,7 @@ export default function AdminDashboard() {
     }
 
     // 1. Remove from pending approvals
-    const updatedPending = pendingApprovals.filter(p => p.id !== req.id);
+    const updatedPending = pendingApprovals.filter(p => p.id !== req.id && p.email?.toLowerCase() !== req.email?.toLowerCase());
     setPendingApprovals(updatedPending);
     localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedPending));
 
@@ -215,12 +215,41 @@ export default function AdminDashboard() {
 
     // Save to approved users list for auth lookup
     const approvedList = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
-    localStorage.setItem("ef_approved_users", JSON.stringify([newActiveUser, ...approvedList.filter(u => u.email !== req.email)]));
+    localStorage.setItem("ef_approved_users", JSON.stringify([newActiveUser, ...approvedList.filter(u => u.email?.toLowerCase() !== req.email?.toLowerCase())]));
+
+    // Also update registered users in localStorage so isApproved becomes true
+    try {
+      const regList = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
+      localStorage.setItem("ef_registered_users", JSON.stringify(regList.map(u => u.email?.toLowerCase() === req.email?.toLowerCase() ? { ...u, isApproved: true } : u)));
+    } catch {}
 
     // Also sync approval status to Supabase Users table
     try {
       supabase.from("Users").update({ Role: req.role, UpdatedAt: new Date().toISOString() }).ilike("Email", req.email).then(() => {});
     } catch (err) {}
+
+    // Also update Supabase ApprovalRequests if applicable
+    try {
+      if (req.id) {
+        supabase.from("ApprovalRequests").update({ Status: "Approved", ResolvedAt: new Date().toISOString() }).eq("Id", req.id).then(() => {});
+      }
+      if (req.email) {
+        supabase.from("ApprovalRequests").select("*").then(({ data: arData }) => {
+          if (arData) {
+            arData.forEach(ar => {
+              try {
+                const p = JSON.parse(ar.Reason || "{}");
+                if ((p.email || p.applicantEmail || "").toLowerCase() === req.email.toLowerCase() && ar.Status === "Pending") {
+                  supabase.from("ApprovalRequests").update({ Status: "Approved", ResolvedAt: new Date().toISOString() }).eq("Id", ar.Id).then(() => {});
+                }
+              } catch {}
+            });
+          }
+        });
+      }
+    } catch {}
+
+    window.dispatchEvent(new Event("storage"));
 
     setPromotionNotice(`✓ Application for "${req.name}" (${req.role === 'VendorVenueManager' ? 'Vendor / Venue' : req.role}) APPROVED & ACTIVATED. They can now sign in.`);
   }
@@ -240,9 +269,31 @@ export default function AdminDashboard() {
       return;
     }
 
-    const updatedPending = pendingApprovals.filter(p => p.id !== reqId);
+    // Also update Supabase ApprovalRequests on reject
+    try {
+      if (reqId) {
+        supabase.from("ApprovalRequests").update({ Status: "Rejected", ResolvedAt: new Date().toISOString() }).eq("Id", reqId).then(() => {});
+      }
+      if (req?.email) {
+        supabase.from("ApprovalRequests").select("*").then(({ data: arData }) => {
+          if (arData) {
+            arData.forEach(ar => {
+              try {
+                const p = JSON.parse(ar.Reason || "{}");
+                if ((p.email || p.applicantEmail || "").toLowerCase() === req.email.toLowerCase() && ar.Status === "Pending") {
+                  supabase.from("ApprovalRequests").update({ Status: "Rejected", ResolvedAt: new Date().toISOString() }).eq("Id", ar.Id).then(() => {});
+                }
+              } catch {}
+            });
+          }
+        });
+      }
+    } catch {}
+
+    const updatedPending = pendingApprovals.filter(p => p.id !== reqId && (!req?.email || p.email?.toLowerCase() !== req.email?.toLowerCase()));
     setPendingApprovals(updatedPending);
     localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedPending));
+    window.dispatchEvent(new Event("storage"));
     setPromotionNotice(`Application for "${applicantName}" rejected and removed from queue.`);
   }
 

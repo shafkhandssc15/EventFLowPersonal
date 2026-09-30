@@ -111,11 +111,30 @@ export default function ApprovalQueue() {
               localStorage.setItem("ef_registered_venues", JSON.stringify(saved.map(v => v.id === lp.targetId ? { ...v, isDeletionPending: false, status: "Active" } : v)));
             } catch {}
           }
+        } else if (approve) {
+          // Account Verification approval
+          try {
+            const approvedList = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
+            const newActive = {
+              id: lp.userId || lp.id,
+              name: lp.name,
+              email: lp.email,
+              role: lp.role,
+              nic: lp.nic,
+              contact: lp.contact,
+              status: "Active",
+              isApproved: true
+            };
+            localStorage.setItem("ef_approved_users", JSON.stringify([newActive, ...approvedList.filter(u => u.email?.toLowerCase() !== lp.email?.toLowerCase())]));
+
+            const regList = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
+            localStorage.setItem("ef_registered_users", JSON.stringify(regList.map(u => u.email?.toLowerCase() === lp.email?.toLowerCase() ? { ...u, isApproved: true } : u)));
+          } catch {}
         }
         // Remove from ef_pending_approvals
         try {
           const allPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-          localStorage.setItem("ef_pending_approvals", JSON.stringify(allPending.filter(p => p.id !== id)));
+          localStorage.setItem("ef_pending_approvals", JSON.stringify(allPending.filter(p => p.id !== id && (!lp.email || p.email?.toLowerCase() !== lp.email?.toLowerCase()))));
           window.dispatchEvent(new Event("storage"));
         } catch {}
       } else {

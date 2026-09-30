@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   IcMail, IcLock, IcUser, IcTarget, IcBuilding, IcShield,
@@ -135,19 +135,82 @@ export default function AuthPage() {
     try {
       const cleanEmail = email.trim().toLowerCase();
 
-      const isExemptEmail = false;
+      // 1. Authenticate with Supabase Database (public.Users table)
+      let uRow = null;
+      try {
+        const { data: dbUsers, error: dbErr } = await supabase
+          .from("Users")
+          .select("*")
+          .ilike("Email", cleanEmail);
 
-      // 1. Check pending approval
-      const pendingList = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-      const pendingUser = pendingList.find(p => p.email.toLowerCase() === cleanEmail && p.status !== "Approved");
-      if (pendingUser && !isExemptEmail) {
-        setPendingModal(pendingUser);
-        throw new Error(`Your ${pendingUser.role === 'VendorVenueManager' ? 'Vendor' : pendingUser.role} account is pending Admin Verification.`);
+        if (!dbErr && dbUsers && dbUsers.length > 0) {
+          uRow = dbUsers[0];
+        }
+      } catch (dbErr) {
+        console.warn("Supabase Users query error:", dbErr);
       }
 
-      // Check approved custom users in localStorage
-      const approvedUsers = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
-      const approvedMatch = approvedUsers.find(u => u.email.toLowerCase() === cleanEmail);
+      if (uRow) {
+        const storedHash = uRow.PasswordHash || uRow.password || "";
+        const isPasswordValid =
+          storedHash === password ||
+          uRow.password === password ||
+          (await verifyAspNetHash(storedHash, password));
+
+        if (!isPasswordValid) {
+          throw new Error("Incorrect password for this account.");
+        }
+
+        const userRole = uRow.Role || uRow.role || "Attendee";
+
+        // Admin and Attendee have immediate platform entry
+        if (userRole !== "Admin" && userRole !== "Attendee") {
+          // Check approval status directly in Supabase ApprovalRequests table
+          try {
+            const { data: dbReqs } = await supabase
+              .from("ApprovalRequests")
+              .select("*")
+              .order("CreatedAt", { ascending: false });
+
+            if (dbReqs && dbReqs.length > 0) {
+              const matchedReq = dbReqs.find(r => {
+                try {
+                  const p = JSON.parse(r.Reason || "{}");
+                  return (p.email || p.applicantEmail || "").toLowerCase().trim() === cleanEmail;
+                } catch {
+                  return false;
+                }
+              });
+
+              if (matchedReq && matchedReq.Status === "Pending") {
+                const parsed = JSON.parse(matchedReq.Reason || "{}");
+                setPendingModal({
+                  name: parsed.name || uRow.Name || cleanEmail,
+                  email: cleanEmail,
+                  role: parsed.role || userRole,
+                  nic: parsed.nic || uRow.Nic || "—",
+                  contact: parsed.contact || uRow.Contact || "—",
+                  submittedAt: matchedReq.CreatedAt || new Date().toISOString()
+                });
+                throw new Error(`Your ${userRole === "VendorVenueManager" ? "Vendor / Venue" : userRole} account is pending Admin Verification.`);
+              }
+            }
+          } catch (appErr) {
+            if (appErr.message?.includes("pending")) throw appErr;
+          }
+        }
+
+        login({
+          id: uRow.Id || uRow.id,
+          name: uRow.Name || uRow.name || (userRole === "Admin" ? "Administrator" : "User"),
+          role: userRole,
+          email: uRow.Email || uRow.email,
+          nic: uRow.Nic || uRow.nic || "",
+          contact: uRow.Contact || uRow.contact || "",
+          address: uRow.Address || uRow.address || ""
+        });
+        return;
+      }
 
       // 2. Authenticate with Supabase Auth
       let sbUser = null;
@@ -170,17 +233,39 @@ export default function AuthPage() {
         const userMeta = sbUser.user_metadata || {};
         const userRole = userMeta.role || "Attendee";
 
-        if (userRole !== "Attendee" && userRole !== "Admin" && !userMeta.isApproved && !approvedMatch && !isExemptEmail) {
-          const pInfo = {
-            name: userMeta.name || email,
-            email: cleanEmail,
-            role: userRole,
-            nic: userMeta.nic || "—",
-            contact: userMeta.contact || "—",
-            submittedAt: new Date().toISOString()
-          };
-          setPendingModal(pInfo);
-          throw new Error(`Your ${userRole} account is pending Admin Verification.`);
+        if (userRole !== "Attendee" && userRole !== "Admin") {
+          try {
+            const { data: dbReqs } = await supabase
+              .from("ApprovalRequests")
+              .select("*")
+              .order("CreatedAt", { ascending: false });
+
+            if (dbReqs && dbReqs.length > 0) {
+              const matchedReq = dbReqs.find(r => {
+                try {
+                  const p = JSON.parse(r.Reason || "{}");
+                  return (p.email || p.applicantEmail || "").toLowerCase().trim() === cleanEmail;
+                } catch {
+                  return false;
+                }
+              });
+
+              if (matchedReq && matchedReq.Status === "Pending") {
+                const parsed = JSON.parse(matchedReq.Reason || "{}");
+                setPendingModal({
+                  name: parsed.name || userMeta.name || email,
+                  email: cleanEmail,
+                  role: userRole,
+                  nic: parsed.nic || userMeta.nic || "—",
+                  contact: parsed.contact || userMeta.contact || "—",
+                  submittedAt: matchedReq.CreatedAt || new Date().toISOString()
+                });
+                throw new Error(`Your ${userRole === "VendorVenueManager" ? "Vendor / Venue" : userRole} account is pending Admin Verification.`);
+              }
+            }
+          } catch (appErr) {
+            if (appErr.message?.includes("pending")) throw appErr;
+          }
         }
 
         login({
@@ -195,91 +280,16 @@ export default function AuthPage() {
         return;
       }
 
-      // 3. Authenticate with Supabase Database (public.Users table)
-      try {
-        const { data: dbUsers, error: dbErr } = await supabase
-          .from("Users")
-          .select("*")
-          .ilike("Email", cleanEmail);
-
-        if (!dbErr && dbUsers && dbUsers.length > 0) {
-          const uRow = dbUsers[0];
-          const storedHash = uRow.PasswordHash || uRow.password || "";
-
-          // Verify password directly against the Supabase Users record (plaintext or PBKDF2 hash)
-          const isPasswordValid =
-            storedHash === password ||
-            uRow.password === password ||
-            (await verifyAspNetHash(storedHash, password));
-
-          if (isPasswordValid) {
-            const userRole = uRow.Role || uRow.role || "Attendee";
-
-            // If account is Admin, only the master Admin or admin-approved user can log in
-            if (userRole === "Admin" && !isExemptEmail) {
-              const isAdminApproved = approvedMatch?.isApproved || approvedMatch?.status === "Active" || uRow.IsApproved === true;
-              if (!isAdminApproved) {
-                setPendingModal({
-                  name: uRow.Name || cleanEmail,
-                  email: cleanEmail,
-                  role: "Admin",
-                  nic: "—",
-                  contact: "—",
-                  submittedAt: new Date().toISOString()
-                });
-                throw new Error("Admin accounts require approval by the Master Administrator before access is granted.");
-              }
-            }
-
-            if ((userRole === "Organizer" || userRole === "VendorVenueManager") && !isExemptEmail) {
-              const isApproved = (approvedMatch && approvedMatch.isApproved) || uRow.IsApproved === true;
-              if (!isApproved) {
-                setPendingModal({
-                  name: uRow.Name || cleanEmail,
-                  email: cleanEmail,
-                  role: userRole,
-                  nic: "—",
-                  contact: "—",
-                  submittedAt: new Date().toISOString()
-                });
-                throw new Error(`Your ${userRole === "VendorVenueManager" ? "Vendor / Venue" : userRole} account is pending Admin Verification.`);
-              }
-            }
-
-            login({
-              id: uRow.Id || uRow.id,
-              name: uRow.Name || uRow.name || (userRole === "Admin" ? "Administrator" : "User"),
-              role: userRole,
-              email: uRow.Email || uRow.email,
-              nic: uRow.Nic || uRow.nic || "",
-              contact: uRow.Contact || uRow.contact || "",
-              address: uRow.Address || uRow.address || ""
-            });
-            return;
-          } else {
-            throw new Error("Incorrect password for this account.");
-          }
-        }
-      } catch (err) {
-        if (err.message === "Incorrect password for this account." || err.message.includes("pending") || err.message.includes("Admin accounts require")) throw err;
-      }
-
-      // 4. Authenticate with registered users in localStorage (registered via Sign Up form)
+      // 3. Fallback for locally registered accounts in localStorage
       const registeredUsers = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
       const registeredMatch = registeredUsers.find(
-        u => u.email.toLowerCase() === cleanEmail && u.password === password
+        u => u.email?.toLowerCase() === cleanEmail && u.password === password
       );
 
       if (registeredMatch) {
-        const isApproved =
-          registeredMatch.role === "Attendee" ||
-          isExemptEmail ||
-          registeredMatch.isApproved ||
-          (approvedMatch && approvedMatch.status === "Approved");
-
-        if (!isApproved) {
+        if (registeredMatch.role !== "Attendee" && registeredMatch.role !== "Admin" && !registeredMatch.isApproved) {
           setPendingModal(registeredMatch);
-          throw new Error(`Your ${registeredMatch.role} account is pending Admin Verification.`);
+          throw new Error(`Your ${registeredMatch.role === "VendorVenueManager" ? "Vendor / Venue" : registeredMatch.role} account is pending Admin Verification.`);
         }
 
         login({
@@ -294,7 +304,7 @@ export default function AuthPage() {
         return;
       }
 
-      // 5. No valid account found — reject login!
+      // 4. No valid account found — reject login!
       throw new Error(
         sbErrorMsg ||
         "Invalid email or password. If you don't have an account yet, please click 'Create Account' above to sign up."
@@ -405,8 +415,9 @@ export default function AuthPage() {
       }
 
       if (requiresAdminApproval) {
+        const reqId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : newUserId;
         const approvalRequest = {
-          id: `req-${Date.now()}`,
+          id: reqId,
           userId: newUserId,
           name: newUser.name,
           email: cleanEmail,
@@ -419,6 +430,18 @@ export default function AuthPage() {
           status: "PendingAdminApproval",
           submittedAt: new Date().toISOString()
         };
+
+        // Write directly to Supabase ApprovalRequests table
+        try {
+          await supabase.from("ApprovalRequests").insert({
+            Id: reqId,
+            Status: "Pending",
+            CreatedAt: new Date().toISOString(),
+            Reason: JSON.stringify(approvalRequest)
+          });
+        } catch (rErr) {
+          console.warn("Supabase ApprovalRequests sync warning:", rErr);
+        }
 
         const existingReqs = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
         localStorage.setItem("ef_pending_approvals", JSON.stringify([approvalRequest, ...existingReqs.filter(r => r.email !== cleanEmail)]));
@@ -754,6 +777,88 @@ export default function AuthPage() {
               >
                 {busy ? "Authenticating…" : "Sign In to EventFlow"}
               </button>
+
+              {/* Quick-Fill Live Accounts */}
+              <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--c-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span>Quick-Fill Live Accounts</span>
+                  <span style={{ fontSize: 10, color: "#38bdf8", fontWeight: 600 }}>Click to fill &amp; test</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setEmail("admin.eventflow@gmail.com"); setPass("Admin@123456"); }}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "8px",
+                      background: "rgba(239, 68, 68, 0.1)",
+                      border: "1px solid rgba(239, 68, 68, 0.3)",
+                      color: "#fca5a5",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <div style={{ color: "#ef4444", fontWeight: 800 }}>👑 Platform Admin</div>
+                    <div style={{ fontSize: 10, color: "var(--c-text-2)", marginTop: 2 }}>admin.eventflow@...</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEmail("organizer.eventflow@gmail.com"); setPass("Organizer@123456"); }}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "8px",
+                      background: "rgba(59, 130, 246, 0.1)",
+                      border: "1px solid rgba(59, 130, 246, 0.3)",
+                      color: "#93c5fd",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <div style={{ color: "#3b82f6", fontWeight: 800 }}>🎪 Lead Organizer</div>
+                    <div style={{ fontSize: 10, color: "var(--c-text-2)", marginTop: 2 }}>organizer.eventflow@...</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEmail("vendor.eventflow@gmail.com"); setPass("Vendor@123456"); }}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "8px",
+                      background: "rgba(139, 92, 246, 0.1)",
+                      border: "1px solid rgba(139, 92, 246, 0.3)",
+                      color: "#c4b5fd",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <div style={{ color: "#8b5cf6", fontWeight: 800 }}>🏨 Venue Partner</div>
+                    <div style={{ fontSize: 10, color: "var(--c-text-2)", marginTop: 2 }}>vendor.eventflow@...</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEmail("buddhi@gmail.com"); setPass("buddhi1234"); }}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "8px",
+                      background: "rgba(16, 185, 129, 0.1)",
+                      border: "1px solid rgba(16, 185, 129, 0.3)",
+                      color: "#6ee7b7",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <div style={{ color: "#10b981", fontWeight: 800 }}>🎟️ Attendee (Buddhi)</div>
+                    <div style={{ fontSize: 10, color: "var(--c-text-2)", marginTop: 2 }}>buddhi@gmail.com</div>
+                  </button>
+                </div>
+              </div>
             </form>
           ) : (
             /* ── Sign Up Form ── */
@@ -1306,7 +1411,13 @@ export default function AuthPage() {
             </h2>
 
             <p style={{ fontSize: 13, color: "var(--c-text-2)", lineHeight: 1.6, marginBottom: 20 }}>
-              Your application as an <strong>{pendingModal.role === "VendorVenueManager" ? "Vendor / Venue Partner" : "Event Organizer"}</strong> has been received by EventFlow Sri Lanka Administration.
+              Your application as an <strong>{
+                pendingModal.role === "VendorVenueManager"
+                  ? "Vendor / Venue Partner"
+                  : pendingModal.role === "Admin"
+                  ? "Platform Administrator"
+                  : "Event Organizer"
+              }</strong> has been received by EventFlow Sri Lanka Administration.
             </p>
 
             <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--c-border)", borderRadius: "10px", padding: 14, textAlign: "left", marginBottom: 20, fontSize: 12 }}>
