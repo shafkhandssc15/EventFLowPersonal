@@ -12,13 +12,17 @@
  * keeps dashboard state synchronized with Supabase.
  */
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { supabase, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, FALLBACK_IMAGE, getCategoryCover } from "../api/supabase.js";
 import { api } from "../api/client.js";
 
 const RealtimeContext = createContext(null);
 
 // ─── Row mappers: Supabase PascalCase → camelCase used by the frontend ────────
 function mapEvent(row) {
+  const cat = row.Category ?? row.category ?? "Other";
+  const rawImg = row.Image ?? row.image ?? row.ImageUrl ?? row.imageUrl;
+  const validImg = (typeof rawImg === "string" && rawImg.trim().startsWith("http")) ? rawImg.trim() : getCategoryCover(cat);
+
   return {
     id: row.Id ?? row.id,
     organizerId: row.OrganizerId ?? row.organizerId,
@@ -26,7 +30,7 @@ function mapEvent(row) {
     organizerEmail: row.OrganizerEmail ?? row.organizerEmail ?? "",
     title: row.Title ?? row.title,
     description: row.Description ?? row.description ?? "",
-    category: row.Category ?? row.category ?? "Other",
+    category: cat,
     venueId: row.VenueId ?? row.venueId ?? "",
     location: row.Location ?? row.location ?? "",
     lat: row.Lat ?? row.lat,
@@ -35,7 +39,7 @@ function mapEvent(row) {
     endDate: row.EndDate ?? row.endDate,
     capacity: row.Capacity ?? row.capacity ?? 0,
     status: row.Status ?? row.status ?? "Draft",
-    image: row.Image ?? row.image ?? row.ImageUrl ?? row.imageUrl,
+    image: validImg,
     ticketTypes: row.TicketTypes ?? row.ticketTypes ?? [],
   };
 }

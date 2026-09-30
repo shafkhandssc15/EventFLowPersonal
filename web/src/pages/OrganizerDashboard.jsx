@@ -8,7 +8,7 @@ import {
   IcAlert, IcBuilding, IcShield, IcCompass, IcMail, IcImage,
   IcCheckCircle, IcClock, IcX
 } from "../components/Icons.jsx";
-import { supabase, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, formatLKR, FALLBACK_IMAGE, getCategoryCover } from "../api/supabase.js";
 import ImageUploader from "../components/ImageUploader.jsx";
 import BookingChatDrawer from "../components/BookingChatDrawer.jsx";
 
@@ -23,6 +23,109 @@ const STATUS_BADGE = {
   "Deletion Requested": "badge-amber",
   "Pending Deletion":   "badge-amber",
 };
+
+// Robust Event Avatar / DP Component: Prevents broken image icons with category covers & fallback initials badge
+function EventAvatar({ event, size = 48 }) {
+  const cat = event?.category || "Other";
+  const defaultImg = getCategoryCover(cat);
+  const initialImg = (typeof event?.image === "string" && event.image.trim().startsWith("http"))
+    ? event.image.trim()
+    : ((typeof event?.imageUrl === "string" && event.imageUrl.trim().startsWith("http")) ? event.imageUrl.trim() : defaultImg);
+
+  const [src, setSrc] = useState(initialImg);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const nextImg = (typeof event?.image === "string" && event.image.trim().startsWith("http"))
+      ? event.image.trim()
+      : ((typeof event?.imageUrl === "string" && event.imageUrl.trim().startsWith("http")) ? event.imageUrl.trim() : defaultImg);
+    setSrc(nextImg);
+    setFailed(false);
+  }, [event?.image, event?.imageUrl, event?.category]);
+
+  const initials = (event?.title || "EV")
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(w => w[0]?.toUpperCase() || "")
+    .join("") || "EV";
+
+  const catGradients = {
+    Technology: "linear-gradient(135deg, #1e3a8a, #3b82f6)",
+    Music:      "linear-gradient(135deg, #581c87, #a855f7)",
+    Food:       "linear-gradient(135deg, #78350f, #f59e0b)",
+    Business:   "linear-gradient(135deg, #064e3b, #10b981)",
+    Sports:     "linear-gradient(135deg, #7f1d1d, #ef4444)",
+    Art:        "linear-gradient(135deg, #831843, #ec4899)",
+    Health:     "linear-gradient(135deg, #134e4a, #14b8a6)",
+    Education:  "linear-gradient(135deg, #312e81, #6366f1)",
+    Other:      "linear-gradient(135deg, #1f2937, #4b5563)",
+  };
+
+  const bgGradient = catGradients[cat] || catGradients.Technology;
+
+  if (failed) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: 8,
+          background: bgGradient,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 800,
+          fontSize: size <= 44 ? 12 : 14,
+          color: "#ffffff",
+          letterSpacing: 0.5,
+          flexShrink: 0,
+          border: "1px solid rgba(255,255,255,0.15)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+        }}
+        title={event?.title}
+      >
+        {initials}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 8,
+        overflow: "hidden",
+        flexShrink: 0,
+        background: "var(--c-bg-2)",
+        border: "1px solid var(--c-border)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }}
+    >
+      <img
+        src={src}
+        alt=""
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block"
+        }}
+        onError={() => {
+          if (src !== defaultImg) {
+            setSrc(defaultImg);
+          } else {
+            setFailed(true);
+          }
+        }}
+      />
+    </div>
+  );
+}
 
 export default function OrganizerDashboard() {
   const { user } = useAuth();
@@ -1092,12 +1195,7 @@ export default function OrganizerDashboard() {
                           <tr key={ev.id}>
                             <td>
                               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                <img
-                                  src={ev.image || ev.imageUrl || FALLBACK_IMAGE}
-                                  alt={ev.title}
-                                  style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }}
-                                  onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
-                                />
+                                <EventAvatar event={ev} size={44} />
                                 <div>
                                   <div className="td-primary" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                     <span>{ev.title}</span>
@@ -1524,12 +1622,7 @@ export default function OrganizerDashboard() {
                       return (
                         <div key={ev.id} className="card" style={{ padding: 18, background: "var(--c-bg-1)", border: "1px solid var(--c-border)" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-                            <img
-                              src={ev.image || ev.imageUrl || ""}
-                              alt={ev.title}
-                              style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: "var(--c-bg-2)" }}
-                              onError={e => { e.currentTarget.style.background = "#1e293b"; e.currentTarget.src = ""; }}
-                            />
+                            <EventAvatar event={ev} size={48} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
                               <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 2 }}>{ev.category} · {ev.location || "Sri Lanka"}</div>
