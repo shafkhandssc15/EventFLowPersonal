@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart';
 import '../models/event.dart';
@@ -213,26 +212,14 @@ class SupabaseService extends ChangeNotifier {
         if (await file.exists()) {
           final bytes = await file.readAsBytes();
           final filename = 'highlight-${DateTime.now().millisecondsSinceEpoch}.jpg';
-          final uploadUrl = 'https://fndjylgegtzjxdkkqjql.supabase.co/storage/v1/object/highlights/$filename';
-
-          final res = await http.post(
-            Uri.parse(uploadUrl),
-            headers: {
-              'apikey': _client.supabaseKey,
-              'Authorization': 'Bearer ${_client.supabaseKey}',
-              'Content-Type': 'image/jpeg',
-              'x-upsert': 'true',
-            },
-            body: bytes,
+          await _client.storage.from('highlights').uploadBinary(
+            filename,
+            bytes,
+            fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
           );
-
-          if (res.statusCode == 200) {
-            final publicUrl = 'https://fndjylgegtzjxdkkqjql.supabase.co/storage/v1/object/public/highlights/$filename';
-            finalImage = publicUrl;
-            debugPrint('✅ Uploaded story highlight directly to Supabase Storage CDN: $publicUrl');
-          } else {
-            debugPrint('Supabase storage upload notice: ${res.statusCode} ${res.body}');
-          }
+          final publicUrl = _client.storage.from('highlights').getPublicUrl(filename);
+          finalImage = publicUrl;
+          debugPrint('✅ Uploaded story highlight directly to Supabase Storage CDN: $publicUrl');
         }
       } catch (uploadErr) {
         debugPrint('Supabase Storage notice (using resilient local cache): $uploadErr');
@@ -554,7 +541,7 @@ class SupabaseService extends ChangeNotifier {
       } catch (_) {}
     }
 
-    // 4. Search in ApprovalRequests if ticket is still not found
+    // 4. Search in ApprovalRequests if ticket record is in pending approval queue
     if (ticket == null && registration == null) {
       try {
         final arRows = await _client
@@ -564,62 +551,43 @@ class SupabaseService extends ChangeNotifier {
             .limit(1);
 
         if ((arRows as List).isNotEmpty) {
-          final reasonRaw = arRows.first['Reason'];
+          final ar = arRows.first;
+          final arStatus = ar['Status']?.toString() ?? 'PendingOrganizerApproval';
+          final reasonRaw = ar['Reason'];
+          Map<String, dynamic> master = {};
           if (reasonRaw != null) {
-            // Found in master bookings / approval requests
-            final now = DateTime.now().toIso8601String();
-            final newTicketId = _generateUuidV4();
-            final newRegId = _generateUuidV4();
-            const defaultEventId = '33333333-0000-0000-0000-000000000001';
-            const defaultTTId = 'c89c13a6-7ae1-4a69-8053-079502fe2a80';
-            const defaultAttendeeId = '10000000-0000-0000-0000-000000000001';
-
-            final tCreated = await _client.from('Tickets').insert({
-              'Id': newTicketId,
-              'TicketTypeId': defaultTTId,
-              'AttendeeId': defaultAttendeeId,
-              'QrCode': cleanCode,
-              'CreatedAt': now,
-            }).select().maybeSingle();
-            if (tCreated != null) ticket = tCreated;
-
-            final rCreated = await _client.from('Registrations').insert({
-              'Id': newRegId,
-              'EventId': defaultEventId,
-              'AttendeeId': defaultAttendeeId,
-              'TicketId': newTicketId,
-              'Status': 'Confirmed',
-              'CreatedAt': now,
-              'UpdatedAt': now,
-            }).select().maybeSingle();
-            if (rCreated != null) registration = rCreated;
+            try {
+              master = jsonDecode(reasonRaw);
+            } catch (_) {}
           }
-        }
-      } catch (e) {
-        debugPrint('Notice resolving from ApprovalRequests: $e');
-      }
-    }
 
-    // 5. Dynamic self-provisioning for any valid EventFlow barcode pattern
-    if (ticket == null && registration == null) {
-      final isOfficialPattern = cleanCode.toUpperCase().startsWith('EVENTFLOW') ||
-          cleanCode.toUpperCase().startsWith('EF-') ||
-          cleanCode.toUpperCase().startsWith('BK-') ||
-          cleanCode.toUpperCase().startsWith('TKT-');
+          final evTitle = master['eventTitle'] ?? 'Event Pass';
+          final attName = master['attendeeName'] ?? 'Attendee';
+          final tName = master['tierName'] ?? 'Standard Pass';
 
-      if (isOfficialPattern) {
-        final now = DateTime.now().toIso8601String();
-        final newTicketId = _generateUuidV4();
-        final newRegId = _generateUuidV4();
-        const defaultEventId = '33333333-0000-0000-0000-000000000001';
-        const defaultTTId = 'c89c13a6-7ae1-4a69-8053-079502fe2a80';
-        const defaultAttendeeId = '10000000-0000-0000-0000-000000000001';
+          if (arStatus != 'Approved') {
+            return {
+              'success': false,
+              'message': '❌ PAYMENT UNCONFIRMED: This ticket is awaiting organizer approval. Bank transfer slip has not been verified yet in the organizer dashboard.\n\nEvent: $evTitle\nHolder: $attName\nTier: $tName\nPass ID: $cleanCode',
+              'eventTitle': evTitle,
+              'attendeeName': attName,
+              'tierName': tName,
+              'code': cleanCode,
+            };
+          }
 
-        try {
+          // If approved in ApprovalRequests, link or create active ticket and registration
+          final now = DateTime.now().toIso8601String();
+          final newTicketId = _generateUuidV4();
+          final newRegId = _generateUuidV4();
+          final targetEventId = master['eventId'] ?? '33333333-0000-0000-0000-000000000001';
+          const defaultTTId = 'c89c13a6-7ae1-4a69-8053-079502fe2a80';
+          final targetAttId = master['attendeeId'] ?? '10000000-0000-0000-0000-000000000001';
+
           final tCreated = await _client.from('Tickets').insert({
             'Id': newTicketId,
             'TicketTypeId': defaultTTId,
-            'AttendeeId': defaultAttendeeId,
+            'AttendeeId': targetAttId,
             'QrCode': cleanCode,
             'CreatedAt': now,
           }).select().maybeSingle();
@@ -627,28 +595,28 @@ class SupabaseService extends ChangeNotifier {
 
           final rCreated = await _client.from('Registrations').insert({
             'Id': newRegId,
-            'EventId': defaultEventId,
-            'AttendeeId': defaultAttendeeId,
+            'EventId': targetEventId,
+            'AttendeeId': targetAttId,
             'TicketId': newTicketId,
             'Status': 'Confirmed',
             'CreatedAt': now,
             'UpdatedAt': now,
           }).select().maybeSingle();
           if (rCreated != null) registration = rCreated;
-        } catch (e) {
-          debugPrint('Notice provisioning dynamic ticket: $e');
         }
+      } catch (e) {
+        debugPrint('Notice resolving from ApprovalRequests: $e');
       }
     }
 
     if (ticket == null && registration == null) {
       return {
         'success': false,
-        'message': '❌ Invalid QR code: Pass not found in EventFlow database.\nCode: $cleanCode',
+        'message': '❌ FAKE / UNREGISTERED PASS: QR code is not registered in the EventFlow system.\nCode: $cleanCode',
       };
     }
 
-    // 6. Resilient Multi-Path Registration Resolution
+    // 5. Resilient Multi-Path Registration Resolution
     if (registration == null && ticket != null && ticket['Id'] != null) {
       // a. By TicketId
       try {
@@ -677,7 +645,7 @@ class SupabaseService extends ChangeNotifier {
         } catch (_) {}
       }
 
-      // c. Auto-create registration row if missing
+      // c. Auto-link or fetch matching event
       if (registration == null) {
         try {
           String resolvedEventId = '33333333-0000-0000-0000-000000000001';
@@ -713,7 +681,7 @@ class SupabaseService extends ChangeNotifier {
       }
     }
 
-    // 7. Ensure registration is valid
+    // 6. Ensure registration object exists
     if (registration == null) {
       registration = {
         'Id': _generateUuidV4(),
@@ -724,7 +692,7 @@ class SupabaseService extends ChangeNotifier {
       };
     }
 
-    // 8. Fetch related metadata (Event Title, Attendee Name, Tier Name)
+    // 7. Fetch related metadata (Event Title, Attendee Name, Tier Name)
     String eventTitle = 'Sri Lanka AI & Tech Innovation Summit 2027';
     String attendeeName = 'Verified Attendee';
     String tierName = 'Standard Pass';
@@ -746,8 +714,34 @@ class SupabaseService extends ChangeNotifier {
       }
     } catch (_) {}
 
-    // 9. Duplicate scan check
-    if (registration['Status'] == 'CheckedIn') {
+    final currentStatus = registration['Status']?.toString() ?? 'Confirmed';
+
+    // 8. Gate: Payment / Slip Approval Check
+    if (currentStatus == 'PendingApproval' || currentStatus == 'PendingOrganizerApproval') {
+      return {
+        'success': false,
+        'message': '❌ PAYMENT UNCONFIRMED: This ticket is awaiting organizer approval. Bank transfer slip has not been verified yet in the organizer dashboard.\n\nEvent: $eventTitle\nHolder: $attendeeName\nTier: $tierName\nPass ID: $cleanCode',
+        'eventTitle': eventTitle,
+        'attendeeName': attendeeName,
+        'tierName': tierName,
+        'code': cleanCode,
+      };
+    }
+
+    // 9. Gate: Rejected Booking Check
+    if (currentStatus == 'Rejected' || currentStatus == 'Cancelled') {
+      return {
+        'success': false,
+        'message': '❌ PASS REJECTED: This booking was rejected or cancelled by the event organizer.\n\nEvent: $eventTitle\nHolder: $attendeeName\nTier: $tierName\nPass ID: $cleanCode',
+        'eventTitle': eventTitle,
+        'attendeeName': attendeeName,
+        'tierName': tierName,
+        'code': cleanCode,
+      };
+    }
+
+    // 10. Gate: Duplicate Scan Check
+    if (currentStatus == 'CheckedIn') {
       return {
         'success': false,
         'alreadyUsed': true,
@@ -760,7 +754,7 @@ class SupabaseService extends ChangeNotifier {
       };
     }
 
-    // 10. Mark as CheckedIn in Supabase
+    // 11. Mark as CheckedIn in Supabase
     final now = DateTime.now().toIso8601String();
     try {
       await _client.from('Registrations').update({
