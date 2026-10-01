@@ -1,9 +1,9 @@
-# Node / Web
+# Node / Web / Mobile JS
 **/node_modules/
 **/dist/
 **/.vite/
-*.env.local
-*.env.*.local
+**/.env.local
+**/.env.*.local
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -20,7 +20,9 @@ backend/**/appsettings.Development.json
 *.sln.docstates
 
 # Python / AI Agents
-**/__pycache__/
+agents/__pycache__/
+agents/*/__pycache__/
+agents/**/__pycache__/
 *.py[cod]
 *$py.class
 agents/.venv/
@@ -29,13 +31,13 @@ agents/ENV/
 .env
 
 # Flutter / Mobile
-*.apk
-*.aab
 **/.dart_tool/
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 **/.packages
 **/build/
+**/*.apk
+**/*.aab
 **/windows/flutter/ephemeral/
 **/.gradle/
 **/local.properties
@@ -54,4 +56,3 @@ agents/ENV/
 *.swo
 .DS_Store
 Thumbs.db
-
