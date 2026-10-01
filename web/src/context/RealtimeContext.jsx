@@ -3,6 +3,7 @@
  *
  * Subscribes ONCE to Supabase Realtime channels for:
  *   • "Events"         table — INSERT / UPDATE / DELETE
+ *   • "TicketTypes"    table — INSERT / UPDATE / DELETE
  *   • "Venues"         table — INSERT / UPDATE / DELETE
  *   • "Registrations"  table — INSERT / UPDATE / DELETE
  *   • "VendorBookings" table — INSERT / UPDATE / DELETE
@@ -18,13 +19,29 @@ import { api } from "../api/client.js";
 const RealtimeContext = createContext(null);
 
 // ─── Row mappers: Supabase PascalCase → camelCase used by the frontend ────────
-function mapEvent(row) {
+function mapEvent(row, ticketTypesMap = {}) {
   const cat = row.Category ?? row.category ?? "Other";
   const rawImg = row.Image ?? row.image ?? row.ImageUrl ?? row.imageUrl;
   const validImg = (typeof rawImg === "string" && rawImg.trim().startsWith("http")) ? rawImg.trim() : getCategoryCover(cat);
+  const id = row.Id ?? row.id;
+
+  let tts = row.TicketTypes ?? row.ticketTypes;
+  if (!tts || tts.length === 0) {
+    tts = ticketTypesMap[id] || [];
+  } else if (Array.isArray(tts)) {
+    tts = tts.map(tt => ({
+      id: tt.Id ?? tt.id,
+      eventId: tt.EventId ?? tt.eventId ?? id,
+      name: tt.Name ?? tt.name,
+      price: Number(tt.Price ?? tt.price ?? 0),
+      quantity: Number(tt.Quantity ?? tt.quantity ?? 0),
+      sold: Number(tt.Sold ?? tt.sold ?? 0),
+      createdAt: tt.CreatedAt ?? tt.createdAt,
+    }));
+  }
 
   return {
-    id: row.Id ?? row.id,
+    id: id,
     organizerId: row.OrganizerId ?? row.organizerId,
     organizerName: row.OrganizerName ?? row.organizerName ?? "Organizer",
     organizerEmail: row.OrganizerEmail ?? row.organizerEmail ?? "",
@@ -40,7 +57,7 @@ function mapEvent(row) {
     capacity: row.Capacity ?? row.capacity ?? 0,
     status: row.Status ?? row.status ?? "Draft",
     image: validImg,
-    ticketTypes: row.TicketTypes ?? row.ticketTypes ?? [],
+    ticketTypes: tts || [],
   };
 }
 
@@ -107,7 +124,7 @@ export function RealtimeProvider({ children }) {
 
   // ─── Initial data load ─────────────────────────────────────────────────────
   const loadInitialData = useCallback(async () => {
-    // 1. Events — Supabase first, then the API backed by the same database.
+    // 1. Events & TicketTypes — Supabase first, then the API backed by the same database.
     try {
       const dbEvents = [];
       let sbErr = null;
@@ -122,8 +139,31 @@ export function RealtimeProvider({ children }) {
         if (!data || data.length < 1000) break;
       }
 
+      // Fetch authoritative TicketTypes from Supabase
+      const { data: dbTicketTypes } = await supabase
+        .from("TicketTypes")
+        .select("*")
+        .order("Price", { ascending: true });
+
+      const ticketTypesMap = {};
+      if (dbTicketTypes) {
+        dbTicketTypes.forEach(tt => {
+          const evId = tt.EventId ?? tt.eventId;
+          if (!ticketTypesMap[evId]) ticketTypesMap[evId] = [];
+          ticketTypesMap[evId].push({
+            id: tt.Id ?? tt.id,
+            eventId: evId,
+            name: tt.Name ?? tt.name,
+            price: Number(tt.Price ?? tt.price ?? 0),
+            quantity: Number(tt.Quantity ?? tt.quantity ?? 0),
+            sold: Number(tt.Sold ?? tt.sold ?? 0),
+            createdAt: tt.CreatedAt ?? tt.createdAt,
+          });
+        });
+      }
+
       if (!sbErr && dbEvents) {
-        const mapped = dbEvents.map(mapEvent);
+        const mapped = dbEvents.map(row => mapEvent(row, ticketTypesMap));
         setEvents(mapped);
         localStorage.setItem("ef_events", JSON.stringify(mapped));
       } else {
@@ -139,7 +179,7 @@ export function RealtimeProvider({ children }) {
             if (pageItems.length < 200) break;
             page += 1;
           }
-          const mapped = items.map(mapEvent);
+          const mapped = items.map(row => mapEvent(row, ticketTypesMap));
           setEvents(mapped);
           localStorage.setItem("ef_events", JSON.stringify(mapped));
         } catch {
@@ -189,8 +229,21 @@ export function RealtimeProvider({ children }) {
       .channel("eventflow-realtime", { config: { broadcast: { self: true } } })
 
       // Events ───────────────────────────────────────────────────────────────
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "Events" }, ({ new: row }) => {
-        const ev = mapEvent(row);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "Events" }, async ({ new: row }) => {
+        // Fetch any ticket types for this new event
+        const { data: tts } = await supabase.from("TicketTypes").select("*").eq("EventId", row.Id ?? row.id);
+        const ttMap = {};
+        if (tts) {
+          ttMap[row.Id ?? row.id] = tts.map(tt => ({
+            id: tt.Id ?? tt.id,
+            eventId: tt.EventId ?? tt.eventId,
+            name: tt.Name ?? tt.name,
+            price: Number(tt.Price ?? tt.price ?? 0),
+            quantity: Number(tt.Quantity ?? tt.quantity ?? 0),
+            sold: Number(tt.Sold ?? tt.sold ?? 0),
+          }));
+        }
+        const ev = mapEvent(row, ttMap);
         setEvents(prev => {
           if (prev.some(e => e.id === ev.id)) return prev;
           const next = [ev, ...prev];
@@ -201,14 +254,15 @@ export function RealtimeProvider({ children }) {
         addToast(`🎉 New event: "${ev.title}"`, "success");
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Events" }, ({ new: row }) => {
-        const ev = mapEvent(row);
         setEvents(prev => {
-          const next = prev.map(e => e.id === ev.id ? { ...e, ...ev } : e);
+          const existing = prev.find(e => e.id === (row.Id ?? row.id));
+          const ev = mapEvent(row, { [row.Id ?? row.id]: existing?.ticketTypes || [] });
+          const next = prev.map(e => e.id === ev.id ? { ...e, ...ev, ticketTypes: existing?.ticketTypes || ev.ticketTypes } : e);
           localStorage.setItem("ef_events", JSON.stringify(next));
           return next;
         });
         setLastUpdate(Date.now());
-        addToast(`✏️ Event updated: "${ev.title}"`, "info");
+        addToast(`✏️ Event updated: "${row.Title ?? row.title}"`, "info");
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "Events" }, ({ old: row }) => {
         const id = row.Id ?? row.id;
@@ -219,6 +273,55 @@ export function RealtimeProvider({ children }) {
         });
         setLastUpdate(Date.now());
         addToast("🗑️ An event was removed", "info");
+      })
+
+      // TicketTypes ──────────────────────────────────────────────────────────
+      .on("postgres_changes", { event: "*", schema: "public", table: "TicketTypes" }, ({ eventType, new: newRow, old: oldRow }) => {
+        const evId = newRow?.EventId ?? newRow?.eventId ?? oldRow?.EventId ?? oldRow?.eventId;
+        if (!evId) return;
+
+        setEvents(prev => {
+          const next = prev.map(ev => {
+            if (ev.id !== evId) return ev;
+            let currentTts = [...(ev.ticketTypes || [])];
+            const targetId = newRow?.Id ?? newRow?.id ?? oldRow?.Id ?? oldRow?.id;
+
+            if (eventType === "INSERT") {
+              const mappedTt = {
+                id: newRow.Id ?? newRow.id,
+                eventId: evId,
+                name: newRow.Name ?? newRow.name,
+                price: Number(newRow.Price ?? newRow.price ?? 0),
+                quantity: Number(newRow.Quantity ?? newRow.quantity ?? 0),
+                sold: Number(newRow.Sold ?? newRow.sold ?? 0),
+                createdAt: newRow.CreatedAt ?? newRow.createdAt
+              };
+              if (!currentTts.some(t => t.id === mappedTt.id)) {
+                currentTts.push(mappedTt);
+              }
+            } else if (eventType === "UPDATE") {
+              currentTts = currentTts.map(t => {
+                if (t.id === targetId) {
+                  return {
+                    ...t,
+                    name: newRow.Name ?? newRow.name ?? t.name,
+                    price: Number(newRow.Price ?? newRow.price ?? t.price),
+                    quantity: Number(newRow.Quantity ?? newRow.quantity ?? t.quantity),
+                    sold: Number(newRow.Sold ?? newRow.sold ?? t.sold)
+                  };
+                }
+                return t;
+              });
+            } else if (eventType === "DELETE") {
+              currentTts = currentTts.filter(t => t.id !== targetId);
+            }
+
+            return { ...ev, ticketTypes: currentTts };
+          });
+          localStorage.setItem("ef_events", JSON.stringify(next));
+          return next;
+        });
+        setLastUpdate(Date.now());
       })
 
       // Venues ───────────────────────────────────────────────────────────────
@@ -322,7 +425,7 @@ export function RealtimeProvider({ children }) {
       apiError = err.message;
     }
 
-    // Direct write to Supabase Events table
+    // Direct write to Supabase Events and TicketTypes tables
     try {
       const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
       const eventId = isUUID(savedEvent.id) ? savedEvent.id : crypto.randomUUID();
@@ -342,8 +445,24 @@ export function RealtimeProvider({ children }) {
         CreatedAt: savedEvent.createdAt || now,
         UpdatedAt: now
       });
+
+      // Persist TicketTypes to Supabase
+      if (savedEvent.ticketTypes && savedEvent.ticketTypes.length > 0) {
+        for (const tt of savedEvent.ticketTypes) {
+          const ttId = isUUID(tt.id) ? tt.id : crypto.randomUUID();
+          await supabase.from("TicketTypes").upsert({
+            Id: ttId,
+            EventId: eventId,
+            Name: tt.name,
+            Price: Number(tt.price) || 0,
+            Quantity: Number(tt.quantity) || Number(savedEvent.capacity) || 100,
+            Sold: Number(tt.sold) || 0,
+            CreatedAt: tt.createdAt || now
+          });
+        }
+      }
     } catch (sbErr) {
-      console.warn("[RealtimeContext] Supabase Events upsert:", sbErr);
+      console.warn("[RealtimeContext] Supabase Events/TicketTypes upsert:", sbErr);
     }
 
     // Immediately reflect in state (optimistic update)

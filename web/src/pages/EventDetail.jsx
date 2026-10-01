@@ -48,9 +48,47 @@ export default function EventDetail() {
       setEvent(liveEvent);
       return;
     }
-    api.getEvent(id)
-      .then(res => setEvent(res))
-      .catch(() => setEvent(null));
+
+    (async () => {
+      try {
+        const { data: evData } = await supabase.from("Events").select("*").eq("Id", id).maybeSingle();
+        const { data: ttData } = await supabase.from("TicketTypes").select("*").eq("EventId", id).order("Price", { ascending: true });
+        if (evData) {
+          const tts = (ttData || []).map(tt => ({
+            id: tt.Id ?? tt.id,
+            eventId: tt.EventId ?? tt.eventId ?? id,
+            name: tt.Name ?? tt.name,
+            price: Number(tt.Price ?? tt.price ?? 0),
+            quantity: Number(tt.Quantity ?? tt.quantity ?? 0),
+            sold: Number(tt.Sold ?? tt.sold ?? 0),
+          }));
+          setEvent({
+            id: evData.Id ?? evData.id,
+            organizerId: evData.OrganizerId ?? evData.organizerId,
+            organizerName: evData.OrganizerName ?? evData.organizerName ?? "Organizer",
+            organizerEmail: evData.OrganizerEmail ?? evData.organizerEmail ?? "",
+            title: evData.Title ?? evData.title,
+            description: evData.Description ?? evData.description ?? "",
+            category: evData.Category ?? evData.category ?? "Other",
+            venueId: evData.VenueId ?? evData.venueId ?? "",
+            location: evData.Location ?? evData.location ?? "",
+            lat: evData.Lat ?? evData.lat,
+            lng: evData.Lng ?? evData.lng,
+            startDate: evData.StartDate ?? evData.startDate,
+            endDate: evData.EndDate ?? evData.endDate,
+            capacity: evData.Capacity ?? evData.capacity ?? 0,
+            status: evData.Status ?? evData.status ?? "Draft",
+            image: evData.Image ?? evData.image ?? evData.ImageUrl ?? evData.imageUrl,
+            ticketTypes: tts,
+          });
+          return;
+        }
+      } catch {}
+
+      api.getEvent(id)
+        .then(res => setEvent(res))
+        .catch(() => setEvent(null));
+    })();
   }, [id, liveEvents]);
 
   // Open booking modal for a tier

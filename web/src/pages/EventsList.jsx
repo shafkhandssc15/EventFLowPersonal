@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useRealtime } from "../context/RealtimeContext.jsx";
 import { IcSearch, IcCalendar, IcMapPin, IcUsers, IcCompass, IcGrid } from "../components/Icons.jsx";
-import { FALLBACK_IMAGE } from "../api/supabase.js";
+import { FALLBACK_IMAGE, formatLKR } from "../api/supabase.js";
 import VenueMap from "../components/VenueMap.jsx";
 
 const CATS = ["All", "Technology", "Music", "Sports", "Art", "Food", "Business"];
@@ -184,9 +184,15 @@ export default function EventsList() {
                         <IcUsers style={{ width: 12, height: 12, color: "var(--c-text-3)" }} />
                         {Number(ev.capacity || 1000).toLocaleString()} capacity
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--c-blue)" }}>
-                        Passes &amp; Map →
-                      </span>
+                      {ev.ticketTypes && ev.ticketTypes.length > 0 ? (
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#34d399", background: "rgba(52, 211, 153, 0.1)", padding: "2px 8px", borderRadius: 6, border: "1px solid rgba(52, 211, 153, 0.25)" }}>
+                          From {formatLKR(Math.min(...ev.ticketTypes.map(t => t.price)))}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--c-blue)" }}>
+                          Passes &amp; Map →
+                        </span>
+                      )}
                     </div>
                   </div>
                 </Link>
