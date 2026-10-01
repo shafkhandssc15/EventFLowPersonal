@@ -7,7 +7,7 @@ import {
   IcCompass, IcUsers, IcClock, IcMail, IcShield, IcX, IcEye
 } from "../components/Icons.jsx";
 import VenueMap from "../components/VenueMap.jsx";
-import { supabase, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, formatLKR, FALLBACK_IMAGE, getVenueCoordinates } from "../api/supabase.js";
 import ImageUploader from "../components/ImageUploader.jsx";
 import { useRealtime } from "../context/RealtimeContext.jsx";
 
@@ -83,22 +83,29 @@ export default function VendorDashboard() {
       .order("CreatedAt", { ascending: false })
       .then(({ data: dbVenues, error: vErr }) => {
         if (!vErr && dbVenues) {
-          const mapped = dbVenues.map(row => ({
-            id: row.Id || row.id,
-            ownerId: row.OwnerId || row.vendorId || row.ownerId,
-            vendorId: row.OwnerId || row.vendorId || row.ownerId,
-            name: row.Name || row.name,
-            location: row.Location || row.location,
-            city: row.City || row.city || "Colombo",
-            capacity: Number(row.Capacity || row.capacity) || 1000,
-            pricePerHour: Number(row.PricePerHour || row.pricePerHour) || 0,
-            image: row.Image || row.image || FALLBACK_IMAGE,
-            lat: row.Lat || row.lat || 6.9271,
-            lng: row.Lng || row.lng || 79.8612,
-            amenities: row.Amenities || row.amenities || ["WiFi", "Parking", "AC"],
-            description: row.Description || row.description || "",
-            isActive: row.IsActive ?? true
-          }));
+          const mapped = dbVenues.map(row => {
+            const venueName = row.Name || row.name || "";
+            const venueLoc = row.Location || row.location || "";
+            const venueCity = row.City || row.city || "";
+            const coords = getVenueCoordinates(venueName, venueLoc, venueCity);
+
+            return {
+              id: row.Id || row.id,
+              ownerId: row.OwnerId || row.vendorId || row.ownerId,
+              vendorId: row.OwnerId || row.vendorId || row.ownerId,
+              name: venueName,
+              location: venueLoc,
+              city: venueCity || coords.city,
+              capacity: Number(row.Capacity || row.capacity) || 1000,
+              pricePerHour: Number(row.PricePerHour || row.pricePerHour) || 0,
+              image: row.Image || row.image || FALLBACK_IMAGE,
+              lat: Number(row.Lat || row.lat || coords.lat),
+              lng: Number(row.Lng || row.lng || coords.lng),
+              amenities: row.Amenities || row.amenities || ["WiFi", "Parking", "AC"],
+              description: row.Description || row.description || "",
+              isActive: row.IsActive ?? true
+            };
+          });
 
           setVenues(mapped);
         }

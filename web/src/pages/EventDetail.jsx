@@ -7,7 +7,7 @@ import {
   IcCalendar, IcMapPin, IcUsers, IcArrowLeft, IcClock, IcTicket,
   IcCheckCircle, IcCompass, IcPlus, IcX, IcUser, IcShield
 } from "../components/Icons.jsx";
-import { supabase, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
+import { supabase, formatLKR, FALLBACK_IMAGE, getVenueCoordinates } from "../api/supabase.js";
 import VenueMap from "../components/VenueMap.jsx";
 import QRCodeVisual from "../components/QRCodeVisual.jsx";
 
@@ -439,16 +439,19 @@ export default function EventDetail() {
   const end   = new Date(event.endDate || Date.now() + 7200000);
   const hrs   = Math.max(1, Math.round((end - start) / 3600000));
 
-  const venueLocation = venues.find(v => v.id === event.venueId) || {
-    id: "ven-lk-loc",
-    name: event.location?.split(",")[0] || "Sri Lanka Event Venue",
-    location: event.location || "Colombo, Sri Lanka",
-    lat: event.lat || 6.9271,
-    lng: event.lng || 79.8612,
-    capacity: event.capacity || 2000,
-    pricePerHour: 85000,
-    image: cover
-  };
+  const venueLocation = venues.find(v => v.id === event.venueId) || (() => {
+    const coords = getVenueCoordinates(event.title, event.location);
+    return {
+      id: "ven-lk-loc",
+      name: event.location?.split(",")[0] || "Sri Lanka Event Venue",
+      location: event.location || "Colombo, Sri Lanka",
+      lat: event.lat || coords.lat,
+      lng: event.lng || coords.lng,
+      capacity: event.capacity || 2000,
+      pricePerHour: 85000,
+      image: cover
+    };
+  })();
 
   return (
     <>

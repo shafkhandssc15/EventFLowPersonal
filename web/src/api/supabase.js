@@ -37,3 +37,38 @@ export async function saveSupabaseProfile(profile) {
     console.warn("Profile save warning:", err);
   }
 }
+
+// Helper to accurately resolve GPS coordinates for Sri Lankan venues
+export function getVenueCoordinates(name = "", location = "", city = "") {
+  const text = `${name || ""} ${location || ""} ${city || ""}`.toLowerCase();
+
+  if (text.includes("kandy") || text.includes("peradeniya") || text.includes("grand kandyan")) {
+    return { lat: 7.2906, lng: 80.6337, city: "Kandy" };
+  }
+  if (text.includes("galle") || text.includes("lighthouse") || text.includes("dadella") || text.includes("unawatuna") || text.includes("hikkaduwa")) {
+    return { lat: 6.0535, lng: 80.2210, city: "Galle" };
+  }
+  if (text.includes("waters edge") || text.includes("battaramulla") || text.includes("pannipitiya")) {
+    return { lat: 6.9038, lng: 79.9142, city: "Battaramulla" };
+  }
+  if (text.includes("port city") || text.includes("marina promenade") || text.includes("coastal drive")) {
+    return { lat: 6.9344, lng: 79.8428, city: "Colombo (Port City)" };
+  }
+  if (text.includes("nelum pokuna") || text.includes("ananda coomaraswamy") || text.includes("theatre")) {
+    return { lat: 6.9110, lng: 79.8649, city: "Colombo 07" };
+  }
+  if (text.includes("bmich") || text.includes("bandaranaike") || text.includes("bauddhaloka")) {
+    return { lat: 6.9010, lng: 79.8736, city: "Colombo 07" };
+  }
+  if (text.includes("jaffna")) {
+    return { lat: 9.6615, lng: 80.0255, city: "Jaffna" };
+  }
+  if (text.includes("negombo")) {
+    return { lat: 7.2008, lng: 79.8736, city: "Negombo" };
+  }
+  if (text.includes("nuwara eliya")) {
+    return { lat: 6.9497, lng: 80.7891, city: "Nuwara Eliya" };
+  }
+  return { lat: 6.9271, lng: 79.8612, city: "Colombo" };
+}
+
