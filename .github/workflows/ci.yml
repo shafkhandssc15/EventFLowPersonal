@@ -1,0 +1,66 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x' # Update this if using a different version
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./backend/EventManagement.Api
+      
+    - name: Build
+      run: dotnet build --no-restore
+      working-directory: ./backend/EventManagement.Api
+      
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
+      working-directory: ./backend/EventManagement.Api
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install dependencies
+      run: npm ci
+      working-directory: ./web
+      
+    - name: Build React App
+      run: npm run build
+      working-directory: ./web
+      
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+        
+    - name: Install dependencies
+      run: flutter pub get
+      working-directory: ./mobile/eventflow-mobile---full/eventflow_mobile
+      
+    - name: Analyze project
+      run: flutter analyze
+      working-directory: ./mobile/eventflow-mobile---full/eventflow_mobile
