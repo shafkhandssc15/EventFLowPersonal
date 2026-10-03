@@ -51,6 +51,8 @@ public record VendorResponse(
     DateTimeOffset CreatedAt
 );
 
+
+
 public record VendorBookingResponse(
     Guid Id,
     Guid EventId,
@@ -62,3 +64,5 @@ public record VendorBookingResponse(
     decimal Cost,
     DateTimeOffset CreatedAt
 );
+
+
