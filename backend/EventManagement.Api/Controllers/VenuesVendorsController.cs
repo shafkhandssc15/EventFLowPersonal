@@ -122,16 +122,20 @@ public class VendorsController : ControllerBase
         return Ok(await query.ToListAsync());
     }
 
-    
+
 
     [HttpGet("{id}")]
     public async Task<ActionResult<Vendor>> GetById(Guid id)
     {
         var v = await _db.Vendors.FindAsync(id);
         return v is null ? NotFound() : Ok(v);
+
     }
 
+
     [HttpDelete("{id}")]
+
+    
     public async Task<IActionResult> Deactivate(Guid id, [FromHeader(Name = "X-User-Id")] Guid userId)
     {
         var v = await _db.Vendors.FindAsync(id);
