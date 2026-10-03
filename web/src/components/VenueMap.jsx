@@ -60,7 +60,7 @@ export default function VenueMap({
     { name: "Galle", coords: [6.0535, 80.2210], zoom: 13 },
     { name: "Battaramulla", coords: [6.9038, 79.9142], zoom: 13 },
 
-    
+
   ];
 
   useEffect(() => {
@@ -80,8 +80,12 @@ export default function VenueMap({
           scrollWheelZoom: false,
         });
 
+
+
         // 100% Free Official OpenStreetMap Standard Tile Server — Zero Watermark, Zero Keys
         const tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+        
 
         L.tileLayer(tileUrl, {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
