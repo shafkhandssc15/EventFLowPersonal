@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 
+
 const customGlowIcon = (color = "#2563eb") => L.divIcon({
   className: "custom-map-pin",
   html: `
@@ -29,6 +30,7 @@ const customGlowIcon = (color = "#2563eb") => L.divIcon({
   iconAnchor: [16, 16],
   popupAnchor: [0, -20]
 });
+
 
 export default function VenueMap({
   venues = [],
