@@ -166,11 +166,12 @@ public class VendorBookingsController : ControllerBase
     // CREATE — with conflict-check business rule
     [HttpPost]
 
-    
+
     public async Task<ActionResult> Create(CreateBookingRequest req)
     {
         var ev = await _db.Events.FindAsync(req.EventId);
         if (ev is null) return NotFound("Event not found");
+
 
         if (req.VenueId.HasValue)
         {
@@ -179,6 +180,7 @@ public class VendorBookingsController : ControllerBase
                 .Join(_db.Events, b => b.EventId, e => e.Id, (b, e) => e)
                 .AnyAsync(e => e.StartDate < ev.EndDate && e.EndDate > ev.StartDate);
 
+
             if (conflict)
             {
                 var alternates = await _db.Venues
@@ -186,6 +188,7 @@ public class VendorBookingsController : ControllerBase
                     .Take(3).ToListAsync();
                 return Conflict(new { message = "Venue double-booked for overlapping dates", suggestedAlternates = alternates });
             }
+
         }
 
         var booking = new VendorBooking
@@ -196,6 +199,7 @@ public class VendorBookingsController : ControllerBase
         _db.VendorBookings.Add(booking);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = booking.Id }, booking);
+        
     }
 
     [HttpGet("{id}")]
