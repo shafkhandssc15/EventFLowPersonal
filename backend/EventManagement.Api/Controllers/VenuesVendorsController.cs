@@ -156,12 +156,17 @@ public class VendorsController : ControllerBase
 public class VendorBookingsController : ControllerBase
 {
     private readonly AppDbContext _db;
+
     public VendorBookingsController(AppDbContext db) => _db = db;
+
 
     public record CreateBookingRequest(Guid EventId, Guid? VendorId, Guid? VenueId, decimal Cost);
 
+
     // CREATE — with conflict-check business rule
     [HttpPost]
+
+    
     public async Task<ActionResult> Create(CreateBookingRequest req)
     {
         var ev = await _db.Events.FindAsync(req.EventId);
