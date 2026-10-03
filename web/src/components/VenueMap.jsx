@@ -50,7 +50,8 @@ export default function VenueMap({
   const markersRef = useRef([]);
   const pickerMarkerRef = useRef(null);
   const [activeCity, setActiveCity] = useState("All Sri Lanka");
-  
+
+
 
   const LK_CITIES = [
     { name: "All Sri Lanka", coords: [7.8731, 80.7718], zoom: 7.5 },
@@ -58,6 +59,8 @@ export default function VenueMap({
     { name: "Kandy", coords: [7.2906, 80.6337], zoom: 13 },
     { name: "Galle", coords: [6.0535, 80.2210], zoom: 13 },
     { name: "Battaramulla", coords: [6.9038, 79.9142], zoom: 13 },
+
+    
   ];
 
   useEffect(() => {
