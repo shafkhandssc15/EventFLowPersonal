@@ -8,6 +8,8 @@ namespace EventManagement.Api.Controllers;
 // Student 2 — Venue & Vendor Booking
 [ApiController]
 [Route("api/venues")]
+
+
 public class VenuesController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -27,6 +29,7 @@ public class VenuesController : ControllerBase
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = venue.Id }, venue);
     }
+
 
     [HttpGet]
     public async Task<ActionResult> Search(
@@ -86,6 +89,7 @@ public class VenuesController : ControllerBase
         return Ok(new { available = !conflict });
     }
 }
+
 
 [ApiController]
 [Route("api/vendors")]
