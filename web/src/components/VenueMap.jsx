@@ -85,7 +85,7 @@ export default function VenueMap({
         // 100% Free Official OpenStreetMap Standard Tile Server — Zero Watermark, Zero Keys
         const tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
-        
+
 
         L.tileLayer(tileUrl, {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -94,6 +94,7 @@ export default function VenueMap({
         }).addTo(map);
 
         mapInstanceRef.current = map;
+
 
         if (pickerMode && onLocationPick) {
           map.on("click", (e) => {
@@ -109,6 +110,7 @@ export default function VenueMap({
           });
         }
       }
+      
 
       const map = mapInstanceRef.current;
       if (!map) return;
