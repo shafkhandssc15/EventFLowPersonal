@@ -10,12 +10,14 @@ public record CreateVenueRequest(
     decimal PricePerHour
 );
 
+
 public record CreateVendorRequest(
     Guid OwnerId,
     string Name,
     string? ServiceType,
     decimal PricePerService
 );
+
 
 public record CreateVendorBookingRequest(
     Guid EventId,
@@ -24,7 +26,11 @@ public record CreateVendorBookingRequest(
     decimal Cost
 );
 
+
+
 public record UpdateBookingStatusRequest(string Status);
+
+
 
 public record VenueResponse(
     Guid Id,
@@ -45,6 +51,8 @@ public record VendorResponse(
     DateTimeOffset CreatedAt
 );
 
+
+
 public record VendorBookingResponse(
     Guid Id,
     Guid EventId,
@@ -56,3 +64,5 @@ public record VendorBookingResponse(
     decimal Cost,
     DateTimeOffset CreatedAt
 );
+
+

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 
+
 const customGlowIcon = (color = "#2563eb") => L.divIcon({
   className: "custom-map-pin",
   html: `
@@ -18,17 +19,20 @@ const customGlowIcon = (color = "#2563eb") => L.divIcon({
       justify-content: center;
       cursor: pointer;
       transform: translate(-50%, -50%);
+
     ">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
         <circle cx="12" cy="10" r="3"></circle>
       </svg>
     </div>
+
   `,
   iconSize: [32, 32],
   iconAnchor: [16, 16],
   popupAnchor: [0, -20]
 });
+
 
 export default function VenueMap({
   venues = [],
@@ -39,6 +43,7 @@ export default function VenueMap({
   onLocationPick = null,
   center = [6.9271, 79.8612],
   zoom = 8
+
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -46,12 +51,16 @@ export default function VenueMap({
   const pickerMarkerRef = useRef(null);
   const [activeCity, setActiveCity] = useState("All Sri Lanka");
 
+
+
   const LK_CITIES = [
     { name: "All Sri Lanka", coords: [7.8731, 80.7718], zoom: 7.5 },
     { name: "Colombo", coords: [6.9271, 79.8612], zoom: 12.5 },
     { name: "Kandy", coords: [7.2906, 80.6337], zoom: 13 },
     { name: "Galle", coords: [6.0535, 80.2210], zoom: 13 },
     { name: "Battaramulla", coords: [6.9038, 79.9142], zoom: 13 },
+
+
   ];
 
   useEffect(() => {
@@ -71,8 +80,12 @@ export default function VenueMap({
           scrollWheelZoom: false,
         });
 
+
+
         // 100% Free Official OpenStreetMap Standard Tile Server — Zero Watermark, Zero Keys
         const tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+
 
         L.tileLayer(tileUrl, {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -81,6 +94,7 @@ export default function VenueMap({
         }).addTo(map);
 
         mapInstanceRef.current = map;
+
 
         if (pickerMode && onLocationPick) {
           map.on("click", (e) => {
@@ -96,6 +110,7 @@ export default function VenueMap({
           });
         }
       }
+
 
       const map = mapInstanceRef.current;
       if (!map) return;
@@ -126,6 +141,7 @@ export default function VenueMap({
               <span>Capacity: <strong>${Number(v.capacity || 1000).toLocaleString()}</strong></span>
               <span style="color: #2563eb;">${formatLKR(v.pricePerHour)}/hr</span>
             </div>
+
             ${v.amenities ? `<div style="font-size: 10px; color: #4b5563; margin-bottom: 8px;">${v.amenities.slice(0, 2).join(" • ")}</div>` : ''}
             <button id="select-ven-${v.id}" style="
               width: 100%;
@@ -140,6 +156,7 @@ export default function VenueMap({
             ">Select Venue</button>
           </div>
         `;
+        
 
         marker.bindPopup(popupContent, { maxWidth: 270 });
 
