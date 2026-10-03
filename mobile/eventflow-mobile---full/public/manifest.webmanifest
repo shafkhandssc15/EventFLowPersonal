@@ -1,0 +1,55 @@
+{
+  "id": "/",
+  "name": "EventFlow Mobile",
+  "short_name": "EventFlow",
+  "description": "Live Sri Lanka Events, Attendee QR Pass Wallet & Hardware Gate Scanner",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#030712",
+  "theme_color": "#2563eb",
+  "categories": ["events", "entertainment", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Passes",
+      "short_name": "Passes",
+      "description": "View your saved event passes & QR codes",
+      "url": "/?tab=passes",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Explore Events",
+      "short_name": "Explore",
+      "description": "Browse upcoming summits & concerts",
+      "url": "/?tab=explore",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

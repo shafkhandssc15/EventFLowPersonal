@@ -1,0 +1,6 @@
+{
+  "name": "EventFlow Mobile - Live Events, QR Wallet & Gate Scanner",
+  "description": "Premium mobile client powered by Supabase Realtime PostgreSQL data. Features live event discovery with stories, attendee QR wallet, hardware gate scanner, and autonomous AI concierge.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
