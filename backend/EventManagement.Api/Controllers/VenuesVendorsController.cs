@@ -199,7 +199,7 @@ public class VendorBookingsController : ControllerBase
         _db.VendorBookings.Add(booking);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = booking.Id }, booking);
-        
+
     }
 
     [HttpGet("{id}")]
@@ -208,6 +208,7 @@ public class VendorBookingsController : ControllerBase
         var b = await _db.VendorBookings.FindAsync(id);
         return b is null ? NotFound() : Ok(b);
     }
+
 
     [HttpGet]
     public async Task<ActionResult> List([FromQuery] Guid? eventId, [FromQuery] BookingStatus? status)
@@ -218,7 +219,9 @@ public class VendorBookingsController : ControllerBase
         return Ok(await query.ToListAsync());
     }
 
+
     [HttpPost("{id}/confirm")]
+
     public async Task<IActionResult> Confirm(Guid id)
     {
         var b = await _db.VendorBookings.FindAsync(id);
@@ -229,7 +232,9 @@ public class VendorBookingsController : ControllerBase
         return Ok(b);
     }
 
+
     [HttpPost("{id}/reject")]
+
     public async Task<IActionResult> Reject(Guid id)
     {
         var b = await _db.VendorBookings.FindAsync(id);
@@ -239,4 +244,5 @@ public class VendorBookingsController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(b);
     }
+    
 }
