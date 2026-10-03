@@ -135,7 +135,7 @@ public class VendorsController : ControllerBase
 
     [HttpDelete("{id}")]
 
-    
+
     public async Task<IActionResult> Deactivate(Guid id, [FromHeader(Name = "X-User-Id")] Guid userId)
     {
         var v = await _db.Vendors.FindAsync(id);
@@ -147,8 +147,12 @@ public class VendorsController : ControllerBase
     }
 }
 
+
+
 [ApiController]
 [Route("api/vendor-bookings")]
+
+
 public class VendorBookingsController : ControllerBase
 {
     private readonly AppDbContext _db;
