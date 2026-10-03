@@ -98,7 +98,7 @@ public class VendorsController : ControllerBase
     private readonly AppDbContext _db;
 
     public VendorsController(AppDbContext db) => _db = db;
-    
+
 
     public record CreateVendorRequest(Guid OwnerId, string Name, string? ServiceType, decimal PricePerService);
 
@@ -111,6 +111,8 @@ public class VendorsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = vendor.Id }, vendor);
     }
 
+
+
     [HttpGet]
     public async Task<ActionResult> Search([FromQuery] string? serviceType, [FromQuery] decimal? maxPrice)
     {
@@ -119,6 +121,8 @@ public class VendorsController : ControllerBase
         if (maxPrice.HasValue) query = query.Where(v => v.PricePerService <= maxPrice);
         return Ok(await query.ToListAsync());
     }
+
+    
 
     [HttpGet("{id}")]
     public async Task<ActionResult<Vendor>> GetById(Guid id)
