@@ -26,7 +26,11 @@ public record CreateVendorBookingRequest(
     decimal Cost
 );
 
+
+
 public record UpdateBookingStatusRequest(string Status);
+
+
 
 public record VenueResponse(
     Guid Id,
