@@ -10,12 +10,14 @@ public record CreateVenueRequest(
     decimal PricePerHour
 );
 
+
 public record CreateVendorRequest(
     Guid OwnerId,
     string Name,
     string? ServiceType,
     decimal PricePerService
 );
+
 
 public record CreateVendorBookingRequest(
     Guid EventId,
