@@ -96,7 +96,9 @@ public class VenuesController : ControllerBase
 public class VendorsController : ControllerBase
 {
     private readonly AppDbContext _db;
+
     public VendorsController(AppDbContext db) => _db = db;
+    
 
     public record CreateVendorRequest(Guid OwnerId, string Name, string? ServiceType, decimal PricePerService);
 
