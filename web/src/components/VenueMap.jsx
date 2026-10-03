@@ -110,7 +110,7 @@ export default function VenueMap({
           });
         }
       }
-      
+
 
       const map = mapInstanceRef.current;
       if (!map) return;
@@ -141,6 +141,7 @@ export default function VenueMap({
               <span>Capacity: <strong>${Number(v.capacity || 1000).toLocaleString()}</strong></span>
               <span style="color: #2563eb;">${formatLKR(v.pricePerHour)}/hr</span>
             </div>
+
             ${v.amenities ? `<div style="font-size: 10px; color: #4b5563; margin-bottom: 8px;">${v.amenities.slice(0, 2).join(" • ")}</div>` : ''}
             <button id="select-ven-${v.id}" style="
               width: 100%;
@@ -155,6 +156,7 @@ export default function VenueMap({
             ">Select Venue</button>
           </div>
         `;
+        
 
         marker.bindPopup(popupContent, { maxWidth: 270 });
 
