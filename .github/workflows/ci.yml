@@ -51,16 +51,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+
+    - name: Check mobile directory
+      id: check_mobile
+      run: |
+        if [ -d "./mobile/eventflow-mobile---full/eventflow_mobile" ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
     
     - name: Setup Flutter
+      if: steps.check_mobile.outputs.exists == 'true'
       uses: subosito/flutter-action@v2
       with:
         channel: 'stable'
         
     - name: Install dependencies
+      if: steps.check_mobile.outputs.exists == 'true'
       run: flutter pub get
       working-directory: ./mobile/eventflow-mobile---full/eventflow_mobile
       
     - name: Analyze project
+      if: steps.check_mobile.outputs.exists == 'true'
       run: flutter analyze || true
       working-directory: ./mobile/eventflow-mobile---full/eventflow_mobile
