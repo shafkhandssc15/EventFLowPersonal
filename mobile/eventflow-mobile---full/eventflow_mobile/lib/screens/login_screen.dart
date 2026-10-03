@@ -333,6 +333,65 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFF1E293B)),
+                const SizedBox(height: 12),
+                const Text(
+                  'QUICK DEMO ROLES (1-TAP ACCESS)',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 10),
+
+                // Demo role buttons
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.analytics, color: Color(0xFF8B5CF6), size: 14),
+                      label: const Text('Organizer', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      backgroundColor: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                      side: const BorderSide(color: Color(0xFF8B5CF6)),
+                      onPressed: () {
+                        context.read<SupabaseService>().switchDemoRole('Organizer');
+                        Navigator.pop(context);
+                      },
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.admin_panel_settings, color: Color(0xFFEC4899), size: 14),
+                      label: const Text('Admin', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      backgroundColor: const Color(0xFFEC4899).withValues(alpha: 0.2),
+                      side: const BorderSide(color: Color(0xFFEC4899)),
+                      onPressed: () {
+                        context.read<SupabaseService>().switchDemoRole('Admin');
+                        Navigator.pop(context);
+                      },
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.confirmation_number, color: Color(0xFF60A5FA), size: 14),
+                      label: const Text('Attendee', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      backgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.2),
+                      side: const BorderSide(color: Color(0xFF2563EB)),
+                      onPressed: () {
+                        context.read<SupabaseService>().switchDemoRole('Attendee');
+                        Navigator.pop(context);
+                      },
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.location_city, color: Color(0xFF10B981), size: 14),
+                      label: const Text('Vendor', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.2),
+                      side: const BorderSide(color: Color(0xFF10B981)),
+                      onPressed: () {
+                        context.read<SupabaseService>().switchDemoRole('VendorVenueManager');
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
+                ),
+
               ],
             ),
           ),

@@ -9,6 +9,10 @@ class EventModel {
   final int capacity;
   final List<TicketTypeModel> ticketTypes;
 
+  final String status;
+  final String? organizerId;
+  final String? customImageUrl;
+
   EventModel({
     required this.id,
     required this.title,
@@ -19,6 +23,9 @@ class EventModel {
     required this.location,
     required this.capacity,
     required this.ticketTypes,
+    this.status = 'Published',
+    this.organizerId,
+    this.customImageUrl,
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json, List<TicketTypeModel> types) {
@@ -31,6 +38,9 @@ class EventModel {
       endDate: json['EndDate'] ?? '',
       location: json['Location'] ?? 'Colombo, Sri Lanka',
       capacity: (json['Capacity'] as num?)?.toInt() ?? 100,
+      status: json['Status'] ?? 'Published',
+      organizerId: json['OrganizerId'],
+      customImageUrl: json['ImageUrl'],
       ticketTypes: types,
     );
   }
@@ -40,7 +50,15 @@ class EventModel {
     return ticketTypes.map((t) => t.price).reduce((a, b) => a < b ? a : b);
   }
 
+  int get totalSold {
+    if (ticketTypes.isEmpty) return 0;
+    return ticketTypes.map((t) => t.sold).reduce((a, b) => a + b);
+  }
+
   String get imageUrl {
+    if (customImageUrl != null && customImageUrl!.isNotEmpty) {
+      return customImageUrl!;
+    }
     switch (id) {
       case '33333333-0000-0000-0000-000000000001':
         return 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=85';

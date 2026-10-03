@@ -337,6 +337,284 @@ class SupabaseService extends ChangeNotifier {
     }).toList();
   }
 
+  /// Create a new event with its ticket tiers in Supabase
+  Future<EventModel> createEvent({
+    required String title,
+    required String description,
+    required String category,
+    required String location,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int capacity,
+    String status = 'Published',
+    String? imageUrl,
+    required List<Map<String, dynamic>> ticketTiers,
+  }) async {
+    final eventId = _generateUuidV4();
+    final now = DateTime.now().toIso8601String();
+    final orgId = _currentUser?.id ?? 'usr-organizer';
+
+    final eventData = <String, dynamic>{
+      'Id': eventId,
+      'OrganizerId': orgId,
+      'Title': title.trim(),
+      'Description': description.trim(),
+      'Category': category.trim(),
+      'StartDate': startDate.toIso8601String(),
+      'EndDate': endDate.toIso8601String(),
+      'Location': location.trim(),
+      'Capacity': capacity,
+      'Status': status,
+      'CreatedAt': now,
+      'UpdatedAt': now,
+    };
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      eventData['ImageUrl'] = imageUrl.trim();
+    }
+
+    try {
+      await _client.from('Events').insert(eventData);
+    } catch (e) {
+      debugPrint('Error inserting Event: $e');
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        eventData.remove('ImageUrl');
+        await _client.from('Events').insert(eventData);
+      } else {
+        rethrow;
+      }
+    }
+
+    final createdTypes = <TicketTypeModel>[];
+    for (final tier in ticketTiers) {
+      final ttId = _generateUuidV4();
+      final name = tier['name']?.toString() ?? 'General Pass';
+      final price = (tier['price'] as num?)?.toDouble() ?? 0.0;
+      final qty = (tier['quantity'] as num?)?.toInt() ?? 100;
+
+      try {
+        await _client.from('TicketTypes').insert({
+          'Id': ttId,
+          'EventId': eventId,
+          'Name': name,
+          'Price': price,
+          'Quantity': qty,
+          'Sold': 0,
+          'CreatedAt': now,
+        });
+        createdTypes.add(TicketTypeModel(
+          id: ttId,
+          name: name,
+          price: price,
+          quantity: qty,
+          sold: 0,
+        ));
+      } catch (ttErr) {
+        debugPrint('Error inserting TicketType: $ttErr');
+      }
+    }
+
+    notifyListeners();
+
+    return EventModel(
+      id: eventId,
+      title: title,
+      description: description,
+      category: category,
+      startDate: startDate.toIso8601String(),
+      endDate: endDate.toIso8601String(),
+      location: location,
+      capacity: capacity,
+      status: status,
+      organizerId: orgId,
+      customImageUrl: imageUrl,
+      ticketTypes: createdTypes,
+    );
+  }
+
+  /// Update an existing event in Supabase
+  Future<void> updateEvent({
+    required String eventId,
+    required String title,
+    required String description,
+    required String category,
+    required String location,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int capacity,
+    required String status,
+    String? imageUrl,
+  }) async {
+    final now = DateTime.now().toIso8601String();
+    final updateData = <String, dynamic>{
+      'Title': title.trim(),
+      'Description': description.trim(),
+      'Category': category.trim(),
+      'StartDate': startDate.toIso8601String(),
+      'EndDate': endDate.toIso8601String(),
+      'Location': location.trim(),
+      'Capacity': capacity,
+      'Status': status,
+      'UpdatedAt': now,
+    };
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      updateData['ImageUrl'] = imageUrl.trim();
+    }
+
+    try {
+      await _client.from('Events').update(updateData).eq('Id', eventId);
+    } catch (e) {
+      debugPrint('Error updating Event: $e');
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        updateData.remove('ImageUrl');
+        await _client.from('Events').update(updateData).eq('Id', eventId);
+      } else {
+        rethrow;
+      }
+    }
+
+    notifyListeners();
+  }
+
+  /// Delete or cancel an event in Supabase
+  Future<void> deleteEvent(String eventId) async {
+    try {
+      // First update status to Cancelled
+      await _client.from('Events').update({
+        'Status': 'Cancelled',
+        'UpdatedAt': DateTime.now().toIso8601String(),
+      }).eq('Id', eventId);
+
+      // Check if any registrations exist
+      final regs = await _client.from('Registrations').select('Id').eq('EventId', eventId);
+      if ((regs as List).isEmpty) {
+        await _client.from('TicketTypes').delete().eq('EventId', eventId);
+        await _client.from('Events').delete().eq('Id', eventId);
+      }
+    } catch (e) {
+      debugPrint('Notice deleting/cancelling event: $e');
+    }
+    notifyListeners();
+  }
+
+  /// Add a ticket tier to an existing event
+  Future<void> addTicketType({
+    required String eventId,
+    required String name,
+    required double price,
+    required int quantity,
+  }) async {
+    final ttId = _generateUuidV4();
+    final now = DateTime.now().toIso8601String();
+    await _client.from('TicketTypes').insert({
+      'Id': ttId,
+      'EventId': eventId,
+      'Name': name,
+      'Price': price,
+      'Quantity': quantity,
+      'Sold': 0,
+      'CreatedAt': now,
+    });
+    notifyListeners();
+  }
+
+  /// Fetch organizer dashboard KPI metrics and pending approvals
+  Future<Map<String, dynamic>> fetchOrganizerMetrics() async {
+    try {
+      final regs = await _client.from('Registrations').select();
+      final checkIns = await _client.from('CheckIns').select();
+      final payments = await _client.from('Payments').select();
+      final events = await _client.from('Events').select().order('StartDate', ascending: true);
+      final users = await _client.from('Users').select();
+
+      final regsList = (regs as List);
+      final passesSold = regsList.length;
+
+      final checkedInIds = <String>{
+        ...regsList.where((r) => r['Status'] == 'CheckedIn').map((r) => r['Id'].toString()),
+        ...(checkIns as List).map((ci) => ci['RegistrationId']?.toString() ?? ''),
+      };
+      checkedInIds.remove('');
+
+      double totalRevenue = 0.0;
+      for (final p in (payments as List)) {
+        totalRevenue += (p['Amount'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      final awaiting = regsList.where((r) => r['Status'] == 'Registered').toList();
+      final awaitingPaymentCount = awaiting.length;
+
+      final usersMap = {for (var u in (users as List)) u['Id']?.toString(): u};
+      final eventsMap = {for (var e in (events as List)) e['Id']?.toString(): e};
+
+      final pendingList = awaiting.map((reg) {
+        final attendee = usersMap[reg['AttendeeId']?.toString()];
+        final ev = eventsMap[reg['EventId']?.toString()];
+        final regIdStr = (reg['Id'] ?? '').toString();
+        final codeSnippet = regIdStr.length > 8 ? regIdStr.substring(0, 8) : regIdStr;
+        return {
+          'id': reg['Id'] ?? '',
+          'attendeeName': attendee?['Name'] ?? 'Registered Attendee',
+          'attendeeEmail': attendee?['Email'] ?? '',
+          'eventTitle': ev?['Title'] ?? 'Event Ticket',
+          'ticketTypeName': 'General Pass',
+          'amount': 3500.0,
+          'bookingRef': 'BK-${codeSnippet.toUpperCase()}',
+          'createdAt': reg['CreatedAt'] ?? '',
+        };
+      }).toList();
+
+      return {
+        'passesSold': passesSold,
+        'checkedInCount': checkedInIds.length,
+        'totalRevenue': totalRevenue,
+        'awaitingPaymentCount': awaitingPaymentCount,
+        'pendingPayments': pendingList,
+      };
+    } catch (e) {
+      debugPrint('Error fetching organizer metrics: $e');
+      return {
+        'passesSold': 0,
+        'checkedInCount': 0,
+        'totalRevenue': 0.0,
+        'awaitingPaymentCount': 0,
+        'pendingPayments': [],
+      };
+    }
+  }
+
+  /// Approve payment and confirm attendee registration
+  Future<void> approveRegistrationPayment(String registrationId, [double amount = 3500.0, String bookingRef = '']) async {
+    final now = DateTime.now().toIso8601String();
+    await _client.from('Registrations').update({
+      'Status': 'Confirmed',
+      'UpdatedAt': now,
+    }).eq('Id', registrationId);
+
+    try {
+      await _client.from('Payments').insert({
+        'Id': _generateUuidV4(),
+        'Amount': amount,
+        'Provider': 'BankTransfer',
+        'ProviderRef': bookingRef.isNotEmpty ? bookingRef : 'BK-$registrationId',
+        'CreatedAt': now,
+      });
+    } catch (e) {
+      debugPrint('Payment record notice: $e');
+    }
+    notifyListeners();
+  }
+
+  /// Reject registration
+  Future<void> rejectRegistrationPayment(String registrationId) async {
+    final now = DateTime.now().toIso8601String();
+    await _client.from('Registrations').update({
+      'Status': 'Cancelled',
+      'UpdatedAt': now,
+    }).eq('Id', registrationId);
+    notifyListeners();
+  }
+
+
   Future<List<UserTicketModel>> fetchUserPasses(String attendeeId) async {
     final regs = await _client
         .from('Registrations')

@@ -203,6 +203,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       );
     } else {
       // Default: Attendee
+      screens.add(const OrganizerDashboardScreen());
+      destinations.add(
+        const NavigationDestination(
+          icon: Icon(Icons.analytics_outlined, color: Color(0xFF64748B), size: 22),
+          selectedIcon: Icon(Icons.analytics, color: Color(0xFF8B5CF6), size: 22),
+          label: 'Organizer',
+        ),
+      );
+
       screens.add(const MyTicketsScreen());
       destinations.add(
         const NavigationDestination(
