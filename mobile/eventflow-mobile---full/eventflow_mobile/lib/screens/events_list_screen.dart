@@ -10,6 +10,7 @@ import 'event_detail_screen.dart';
 import 'login_screen.dart';
 import '../widgets/add_highlight_bottom_sheet.dart';
 import '../widgets/story_viewer_modal.dart';
+import 'create_edit_event_screen.dart';
 
 class EventsListScreen extends StatefulWidget {
   const EventsListScreen({super.key});
@@ -448,30 +449,61 @@ class _EventsListScreenState extends State<EventsListScreen> {
                                   ],
                                 ),
                                 if (user?.role == 'Organizer' || user?.role == 'Admin')
-                                  InkWell(
-                                    onTap: () {
-                                      showModalBottomSheet(
-                                        context: context,
-                                        isScrollControlled: true,
-                                        backgroundColor: Colors.transparent,
-                                        builder: (_) => AddHighlightBottomSheet(events: allEvents),
-                                      );
-                                    },
-                                    borderRadius: BorderRadius.circular(14),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF4F46E5)]),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      InkWell(
+                                        onTap: () async {
+                                          final res = await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (_) => const CreateEditEventScreen()),
+                                          );
+                                          if (res == true) _load();
+                                        },
                                         borderRadius: BorderRadius.circular(14),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(14),
+                                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.5)),
+                                          ),
+                                          child: const Row(
+                                            children: [
+                                              Icon(Icons.add, color: Color(0xFF10B981), size: 12),
+                                              SizedBox(width: 3),
+                                              Text('Host Event', style: TextStyle(color: Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold)),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                      child: Row(
-                                        children: const [
-                                          Icon(Icons.add, color: Colors.white, size: 12),
-                                          SizedBox(width: 3),
-                                          Text('Add Story', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                                        ],
+                                      const SizedBox(width: 6),
+                                      InkWell(
+                                        onTap: () {
+                                          showModalBottomSheet(
+                                            context: context,
+                                            isScrollControlled: true,
+                                            backgroundColor: Colors.transparent,
+                                            builder: (_) => AddHighlightBottomSheet(events: allEvents),
+                                          );
+                                        },
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF4F46E5)]),
+                                            borderRadius: BorderRadius.circular(14),
+                                          ),
+                                          child: const Row(
+                                            children: [
+                                              Icon(Icons.add, color: Colors.white, size: 12),
+                                              SizedBox(width: 3),
+                                              Text('Add Story', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ),
                               ],
                             ),
