@@ -174,7 +174,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
                 Purpose: Manage convention halls, exhibition stalls, AV stage packages, and organizer booking quotes.
               </p>
             </div>
-            
+
 
             <button
               onClick={onClose}
@@ -185,6 +185,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           </div>
         </div>
 
+
         {/* 1-Tap Quick Demo Access */}
         <div className="p-3 bg-emerald-950/40 border-b border-emerald-500/20">
           <button
@@ -193,6 +194,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
             disabled={loading}
             className="w-full py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/40 rounded-xl text-left flex items-center justify-between transition group"
           >
+
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-emerald-500/30 text-emerald-300 flex items-center justify-center font-bold text-xs">
                 BM
@@ -213,6 +215,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           </button>
         </div>
 
+
         {/* Mode Switcher */}
         <div className="px-5 pt-3 flex items-center justify-between border-b border-white/5 pb-2 text-xs">
           <span className="font-bold text-white text-xs">
@@ -229,6 +232,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
             {mode === 'login' ? 'Register Facility / Service' : 'Already registered?'}
           </button>
         </div>
+        
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-3.5 overflow-y-auto no-scrollbar">
