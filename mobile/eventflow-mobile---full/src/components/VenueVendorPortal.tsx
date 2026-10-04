@@ -189,7 +189,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
       alert('Could not save vendor: ' + (err.message || 'Please try again'));
     } finally {
       setSubmittingVendor(false);
-      
+
     }
   };
 
@@ -211,6 +211,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
     );
   });
 
+
   return (
     <div className="p-4 space-y-4 select-none pb-24">
       {/* Header */}
@@ -226,6 +227,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
             Certified event spaces, physical locations &amp; production partners
           </p>
         </div>
+
 
         {isVendorManager ? (
           <button
@@ -245,6 +247,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
           </button>
         )}
       </div>
+
 
       {/* Role Banner: If User is VendorVenueManager */}
       {isVendorManager && (
@@ -268,6 +271,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
         </div>
       )}
 
+
       {/* Sub Tabs: Venues vs Vendors */}
       <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-2xl border border-white/10 text-xs">
         <button
@@ -281,6 +285,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
           <Building2 className="w-3.5 h-3.5" />
           <span>Locations &amp; Venues ({venues.length})</span>
         </button>
+
 
         <button
           onClick={() => setActiveTab('vendors')}
@@ -471,7 +476,9 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                   className="px-4 py-2 bg-blue-600 text-white rounded-full text-xs font-bold"
                 >
                   + Add First Vendor Service
+
                 </button>
+                
               )}
             </div>
           ) : (
