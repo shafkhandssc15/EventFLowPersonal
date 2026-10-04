@@ -346,7 +346,9 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           )}
         </div>
       )}
-      
+
+
+
 
       {/* TAB 3: INQUIRIES & REQUESTS */}
       {activeTab === 'requests' && (
@@ -368,6 +370,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
             </div>
           </div>
 
+
           <div className="p-3.5 bg-slate-900/90 border border-white/10 rounded-2xl space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white">Audio/Visual &amp; LED Stage</span>
@@ -385,6 +388,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           </div>
         </div>
       )}
+      
 
       {/* MODAL: ADD VENUE */}
       {showAddVenue && (
