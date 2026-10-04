@@ -21,6 +21,7 @@ import {
   Compass,
   Check,
 } from 'lucide-react';
+
 import confetti from 'canvas-confetti';
 
 interface VenueVendorPortalProps {
@@ -28,6 +29,7 @@ interface VenueVendorPortalProps {
   onOpenLogin: (mode?: 'login' | 'signup') => void;
   onSelectVenue?: (venue: Venue) => void;
 }
+
 
 const VENUE_AMENITIES_OPTIONS = [
   'Air Conditioning',
@@ -40,6 +42,7 @@ const VENUE_AMENITIES_OPTIONS = [
   'Loading Dock Access',
   'Wheelchair Accessible',
 ];
+
 
 const VENDOR_CATEGORY_OPTIONS = [
   'Audio/Visual & Lighting',
