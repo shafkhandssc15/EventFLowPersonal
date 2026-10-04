@@ -91,7 +91,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
   const [vendorCategory, setVendorCategory] = useState(VENDOR_CATEGORY_OPTIONS[0]);
   const [vendorPrice, setVendorPrice] = useState('150000');
   const [submittingVendor, setSubmittingVendor] = useState(false);
-  
+
 
   // Copied indicator
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -111,9 +111,11 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
     }
   };
 
+
   useEffect(() => {
     loadData();
   }, []);
+
 
   const handleCopyLocation = (venue: Venue) => {
     if (venue.Location) {
@@ -121,6 +123,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
       setCopiedId(venue.Id);
       setTimeout(() => setCopiedId(null), 2000);
     }
+
   };
 
   const handleToggleAmenity = (amenity: string) => {
@@ -129,9 +132,11 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
     );
   };
 
+
   const handleCreateVenue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!venueName.trim() || !venueLocation.trim()) return;
+
 
     setSubmittingVenue(true);
     try {
@@ -143,6 +148,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
         ownerId: currentUser?.Id || '00000000-0000-0000-0000-0000000000bb',
       });
 
+
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
       setVenues((prev) => [created, ...prev]);
       setAddVenueOpen(false);
@@ -150,10 +156,12 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
       setVenueLocation('');
       setVenueCapacity('500');
       setVenuePrice('45000');
+
     } catch (err: any) {
       alert('Could not save venue: ' + (err.message || 'Please try again'));
     } finally {
       setSubmittingVenue(false);
+      
     }
   };
 
