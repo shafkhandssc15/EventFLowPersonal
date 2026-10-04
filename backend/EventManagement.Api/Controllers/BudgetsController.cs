@@ -3,7 +3,6 @@ using EventManagement.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-
 namespace EventManagement.Api.Controllers;
 
 // Student 4 — Budget & Payments
@@ -58,6 +57,7 @@ public class BudgetsController : ControllerBase
     }
 
     // UPDATE — adjust budget allocation
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromQuery] decimal totalBudget)
     {
