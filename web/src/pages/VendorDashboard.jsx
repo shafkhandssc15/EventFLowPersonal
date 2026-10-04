@@ -11,7 +11,9 @@ import { supabase, formatLKR, FALLBACK_IMAGE, getVenueCoordinates } from "../api
 import ImageUploader from "../components/ImageUploader.jsx";
 import { useRealtime } from "../context/RealtimeContext.jsx";
 
+
 const SERVICE_TYPES = ["Audio/Visual", "Catering", "Photography", "Security", "Decoration", "Transportation", "Other"];
+
 
 export default function VendorDashboard() {
   const { user } = useAuth();
