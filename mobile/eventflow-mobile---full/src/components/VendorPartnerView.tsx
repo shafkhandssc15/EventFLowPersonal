@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+
 interface VendorPartnerViewProps {
   currentUser: User | null;
   onOpenLogin: (mode?: 'login' | 'signup') => void;
@@ -25,12 +26,14 @@ interface VendorPartnerViewProps {
 export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
   currentUser,
   onOpenLogin,
+
 }) => {
   const [activeTab, setActiveTab] = useState<'venues' | 'services' | 'requests'>('venues');
   const [venues, setVenues] = useState<Venue[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
 
   // Add Venue Modal
   const [showAddVenue, setShowAddVenue] = useState(false);
@@ -39,6 +42,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
   const [vCapacity, setVCapacity] = useState(1500);
   const [vPrice, setVPrice] = useState(75000);
   const [submittingVenue, setSubmittingVenue] = useState(false);
+  
 
   // Add Service Modal
   const [showAddService, setShowAddService] = useState(false);
