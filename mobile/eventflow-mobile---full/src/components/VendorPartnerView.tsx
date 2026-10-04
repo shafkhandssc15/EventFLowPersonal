@@ -109,7 +109,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
         IsActive: true,
         CreatedAt: now,
       });
-      
+
 
       confetti({ particleCount: 40, spread: 50 });
       setShowAddVenue(false);
@@ -122,6 +122,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
       setSubmittingVenue(false);
     }
   };
+
 
   // Add Vendor Service to Supabase
   const handleCreateService = async (e: React.FormEvent) => {
@@ -142,6 +143,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
         CreatedAt: now,
       });
 
+
       confetti({ particleCount: 40, spread: 50 });
       setShowAddService(false);
       setSName('');
@@ -153,6 +155,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
     }
   };
 
+
   return (
     <div className="p-4 space-y-4 select-none pb-24">
       {/* Top Partner Header */}
@@ -163,6 +166,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           </span>
           <h2 className="text-lg font-black text-white">Venues &amp; Vendor Services</h2>
         </div>
+
 
         <div className="flex items-center gap-2">
           <button
@@ -178,6 +182,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
         </div>
       </div>
 
+
       {/* Partner Purpose Summary Banner */}
       <div className="p-3.5 bg-gradient-to-r from-emerald-950/40 via-teal-950/30 to-slate-950 rounded-2xl border border-emerald-500/20 flex items-start gap-2.5">
         <Briefcase className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -185,6 +190,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           Manage your convention facilities, auditorium capacities, audiovisual equipment packages and catering service contracts for Sri Lankan summits.
         </p>
       </div>
+      
 
       {/* Segmented Sub-navigation: Venues / Services / Requests */}
       <div className="grid grid-cols-3 gap-1 p-1 bg-slate-900 rounded-2xl border border-white/5 text-xs">
