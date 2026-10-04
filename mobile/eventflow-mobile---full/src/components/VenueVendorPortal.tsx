@@ -161,13 +161,14 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
       alert('Could not save venue: ' + (err.message || 'Please try again'));
     } finally {
       setSubmittingVenue(false);
-      
+
     }
   };
 
   const handleCreateVendor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vendorName.trim()) return;
+
 
     setSubmittingVendor(true);
     try {
@@ -178,6 +179,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
         ownerId: currentUser?.Id || '00000000-0000-0000-0000-0000000000bb',
       });
 
+
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
       setVendors((prev) => [created, ...prev]);
       setAddVendorOpen(false);
@@ -187,6 +189,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
       alert('Could not save vendor: ' + (err.message || 'Please try again'));
     } finally {
       setSubmittingVendor(false);
+      
     }
   };
 
