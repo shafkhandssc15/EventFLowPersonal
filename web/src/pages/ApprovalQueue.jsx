@@ -94,26 +94,32 @@ export default function ApprovalQueue() {
       if (target?.isLocal && target.rawItem) {
         const lp = target.rawItem;
         if (lp.type === "EVENT_DELETION") {
+          
           if (approve) {
             api.adminDeleteEvent(lp.targetId).catch(() => {});
+            
             try {
               const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
               localStorage.setItem("ef_events", JSON.stringify(saved.filter(e => e.id !== lp.targetId)));
             } catch {}
           } else {
+            
             try {
               const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
               localStorage.setItem("ef_events", JSON.stringify(saved.map(e => e.id === lp.targetId ? { ...e, status: "Published", deletionPending: false } : e)));
             } catch {}
           }
         } else if (lp.type === "VENUE_DELETION") {
+          
           if (approve) {
             api.adminDeleteVenue(lp.targetId).catch(() => {});
+            
             try {
               const saved = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
               localStorage.setItem("ef_registered_venues", JSON.stringify(saved.filter(v => v.id !== lp.targetId)));
             } catch {}
           } else {
+            
             try {
               const saved = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
               localStorage.setItem("ef_registered_venues", JSON.stringify(saved.map(v => v.id === lp.targetId ? { ...v, isDeletionPending: false, status: "Active" } : v)));
@@ -121,6 +127,7 @@ export default function ApprovalQueue() {
           }
         } else if (approve) {
           // Account Verification approval
+          
           try {
             const approvedList = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
             const newActive = {
