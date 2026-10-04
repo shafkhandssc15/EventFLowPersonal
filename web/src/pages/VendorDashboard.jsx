@@ -512,7 +512,7 @@ export default function VendorDashboard() {
     } catch (err) { setError(err.message); }
   }
 
-  
+
 
   const stats = {
     venues:   venues.length,
@@ -545,6 +545,8 @@ export default function VendorDashboard() {
           ) : null}
         </div>
       </div>
+
+      
 
       <div className="page-head">
         <h1 className="page-title">Venues &amp; Vendors Directory</h1>
