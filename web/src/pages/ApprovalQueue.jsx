@@ -146,7 +146,9 @@ export default function ApprovalQueue() {
             localStorage.setItem("ef_registered_users", JSON.stringify(regList.map(u => u.email?.toLowerCase() === lp.email?.toLowerCase() ? { ...u, isApproved: true } : u)));
           } catch {}
         }
+        
         // Remove from ef_pending_approvals
+        
         try {
           const allPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
           localStorage.setItem("ef_pending_approvals", JSON.stringify(allPending.filter(p => p.id !== id && (!lp.email || p.email?.toLowerCase() !== lp.email?.toLowerCase()))));
