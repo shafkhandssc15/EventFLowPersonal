@@ -223,6 +223,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
             ),
           ),
 
+
+
           // Content List
           Expanded(
             child: _tabIndex == 0 ? _buildVenuesList() : _buildVendorsList(),
@@ -243,6 +245,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
         if (venues.isEmpty) {
           return const Center(child: Text('No venues listed', style: TextStyle(color: Color(0xFF64748B))));
         }
+
+
 
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -302,6 +306,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
+
+                  
                   // Amenities tags
                   Wrap(
                     spacing: 6,
