@@ -410,8 +410,9 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
                         },
                         child: const Text('Contact Partner', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
-                      
+
                     ],
+                    
                   ),
                 ],
               ),
