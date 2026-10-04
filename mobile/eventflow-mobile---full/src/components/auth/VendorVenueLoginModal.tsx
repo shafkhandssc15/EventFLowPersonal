@@ -342,6 +342,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           </button>
         </form>
 
+
         {/* Portal Switcher Footer */}
         <div className="p-3 bg-black/60 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
           <span>Need a different portal?</span>
@@ -351,6 +352,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               onClick={() => onSwitchPortal('Attendee')}
               className="text-blue-400 hover:text-blue-300 font-bold"
             >
+
               Attendee
             </button>
             <span>·</span>
@@ -359,6 +361,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               onClick={() => onSwitchPortal('Organizer')}
               className="text-purple-400 hover:text-purple-300 font-bold"
             >
+
               Organizer
             </button>
             <span>·</span>
@@ -367,11 +370,13 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               onClick={() => onSwitchPortal('Admin')}
               className="text-rose-400 hover:text-rose-300 font-bold"
             >
+
               Admin
             </button>
           </div>
         </div>
       </div>
     </div>
+    
   );
 };
