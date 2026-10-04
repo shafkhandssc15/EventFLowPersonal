@@ -57,6 +57,8 @@ public class BudgetsController : ControllerBase
     }
 
     // UPDATE — adjust budget allocation
+
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromQuery] decimal totalBudget)
     {
@@ -72,6 +74,7 @@ public class BudgetsController : ControllerBase
 [ApiController]
 [Route("api/expenses")]
 public class ExpensesController : ControllerBase
+
 {
     private readonly AppDbContext _db;
     private const decimal AutoApproveThreshold = 1000m; // business rule: Section 5, Agent 4
@@ -81,6 +84,7 @@ public class ExpensesController : ControllerBase
     public record CreateExpenseRequest(Guid BudgetId, string Category, decimal Amount);
 
     // CREATE — logs expense; auto-flags above threshold for approval
+    
     [HttpPost]
     public async Task<ActionResult> Create(CreateExpenseRequest req)
     {

@@ -2,6 +2,7 @@ namespace EventManagement.Api.DTOs;
 
 // ---- Student 4: Budget & Payments ----
 
+
 public record CreateBudgetRequest(
     Guid EventId,
     decimal TotalBudget

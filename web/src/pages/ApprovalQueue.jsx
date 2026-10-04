@@ -18,12 +18,15 @@ export default function ApprovalQueue() {
   if (user?.role !== "Admin") {
     return (
       <>
+        
         <div className="topbar">
           <span className="topbar-title">Approvals</span>
         </div>
+        
         <div className="page-head">
           <h1 className="page-title">Access Denied</h1>
         </div>
+        
         <div className="page-body">
           <div className="empty" style={{ paddingTop: 60 }}>
             <IcShield style={{ width: 48, height: 48, color: "var(--c-danger)", opacity: 0.7, marginBottom: 16 }} />
@@ -41,6 +44,7 @@ export default function ApprovalQueue() {
   function load() {
     setLoading(true);
     let localPending = [];
+    
     try {
       localPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
     } catch {}
@@ -48,6 +52,7 @@ export default function ApprovalQueue() {
     api.approvalQueue()
       .then(d => {
         const apiItems = Array.isArray(d) ? d : d.items || [];
+        
         // Map local deletion approvals to queue format
         const formattedLocal = localPending.map(lp => ({
           id: lp.id,
@@ -61,6 +66,7 @@ export default function ApprovalQueue() {
         }));
         setQueue([...formattedLocal, ...apiItems]);
       })
+      
       .catch(() => {
         const formattedLocal = localPending.map(lp => ({
           id: lp.id,
@@ -72,6 +78,7 @@ export default function ApprovalQueue() {
           isLocal: true,
           rawItem: lp
         }));
+        
         setQueue(formattedLocal);
       })
       .finally(() => setLoading(false));
@@ -81,31 +88,38 @@ export default function ApprovalQueue() {
 
   async function decide(id, approve) {
     setDec(id);
+    
     try {
       const target = queue.find(q => q.id === id);
       if (target?.isLocal && target.rawItem) {
         const lp = target.rawItem;
         if (lp.type === "EVENT_DELETION") {
+          
           if (approve) {
             api.adminDeleteEvent(lp.targetId).catch(() => {});
+            
             try {
               const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
               localStorage.setItem("ef_events", JSON.stringify(saved.filter(e => e.id !== lp.targetId)));
             } catch {}
           } else {
+            
             try {
               const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
               localStorage.setItem("ef_events", JSON.stringify(saved.map(e => e.id === lp.targetId ? { ...e, status: "Published", deletionPending: false } : e)));
             } catch {}
           }
         } else if (lp.type === "VENUE_DELETION") {
+          
           if (approve) {
             api.adminDeleteVenue(lp.targetId).catch(() => {});
+            
             try {
               const saved = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
               localStorage.setItem("ef_registered_venues", JSON.stringify(saved.filter(v => v.id !== lp.targetId)));
             } catch {}
           } else {
+            
             try {
               const saved = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
               localStorage.setItem("ef_registered_venues", JSON.stringify(saved.map(v => v.id === lp.targetId ? { ...v, isDeletionPending: false, status: "Active" } : v)));
@@ -113,6 +127,7 @@ export default function ApprovalQueue() {
           }
         } else if (approve) {
           // Account Verification approval
+          
           try {
             const approvedList = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
             const newActive = {
@@ -131,6 +146,7 @@ export default function ApprovalQueue() {
             localStorage.setItem("ef_registered_users", JSON.stringify(regList.map(u => u.email?.toLowerCase() === lp.email?.toLowerCase() ? { ...u, isApproved: true } : u)));
           } catch {}
         }
+        
         // Remove from ef_pending_approvals
         try {
           const allPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
@@ -184,6 +200,7 @@ export default function ApprovalQueue() {
             <div className="empty-desc">No items are pending approval right now.</div>
           </div>
         ) : (
+          
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {queue.map(item => {
               const isDeletion = item.rawItem?.type === "EVENT_DELETION" || item.rawItem?.type === "VENUE_DELETION";
