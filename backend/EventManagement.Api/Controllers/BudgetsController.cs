@@ -58,7 +58,7 @@ public class BudgetsController : ControllerBase
 
     // UPDATE — adjust budget allocation
 
-    
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromQuery] decimal totalBudget)
     {
