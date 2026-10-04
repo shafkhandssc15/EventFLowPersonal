@@ -22,9 +22,11 @@ export default function ApprovalQueue() {
         <div className="topbar">
           <span className="topbar-title">Approvals</span>
         </div>
+        
         <div className="page-head">
           <h1 className="page-title">Access Denied</h1>
         </div>
+        
         <div className="page-body">
           <div className="empty" style={{ paddingTop: 60 }}>
             <IcShield style={{ width: 48, height: 48, color: "var(--c-danger)", opacity: 0.7, marginBottom: 16 }} />
