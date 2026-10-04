@@ -651,19 +651,87 @@ export default function AgentWorkflowRunner() {
                 {/* Agent 1: Milestone Roadmap */}
                 {workflow.milestones && workflow.milestones.length > 0 && (
                   <div className="card" style={{ background:"var(--c-bg-1)" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                      <IcTarget style={{ width: 15, height: 15, color: "#60a5fa" }} />
-                      <span>Agent 1: Milestone Roadmap &amp; Phased Execution</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                        <IcTarget style={{ width: 15, height: 15, color: "#60a5fa" }} />
+                        <span>Agent 1: Milestone Roadmap &amp; Phased Execution</span>
+                      </div>
+                      {workflow.plannerStrategy && (
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                          <span className="badge badge-blue" style={{ fontSize: 10, textTransform: "capitalize" }}>
+                            {workflow.plannerStrategy.domain} Domain
+                          </span>
+                          <span className="badge badge-purple" style={{ fontSize: 10 }}>
+                            {workflow.plannerStrategy.complexity}
+                          </span>
+                        </div>
+                      )}
                     </div>
+
+                    {workflow.plannerStrategy?.criticalPath && (
+                      <div style={{ marginBottom: 12, padding: "8px 12px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 6, fontSize: 11, color: "#fca5a5", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontWeight: 800, color: "#ef4444" }}>⚡ Critical Path:</span>
+                        <span>{workflow.plannerStrategy.criticalPath}</span>
+                      </div>
+                    )}
+
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {workflow.milestones.map((m, idx) => (
                         <div key={idx} style={{ padding: 12, background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid var(--c-border)" }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "#93c5fd", marginBottom: 6 }}>{m.phase}</div>
-                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--c-text-2)", lineHeight: 1.6 }}>
-                            {(m.tasks || []).map((t, tIdx) => (
-                              <li key={tIdx}>{t}</li>
-                            ))}
-                          </ul>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd" }}>{m.phase}</div>
+                            <span className="badge badge-gray" style={{ fontSize: 10, padding: "1px 6px" }}>
+                              {(m.tasks || []).length} Action Items
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {(m.tasks || []).map((t, tIdx) => {
+                              const isObj = typeof t === "object" && t !== null;
+                              const taskText = isObj ? (t.task || t.name || JSON.stringify(t)) : String(t);
+                              const owner = isObj ? t.owner : null;
+                              const priority = isObj ? t.priority : null;
+                              const count = isObj ? t.count : null;
+                              const deliverable = isObj ? t.deliverable : null;
+                              const isCrit = priority === "Critical Path";
+                              const isHigh = priority === "High Priority";
+
+                              return (
+                                <div key={tIdx} style={{ padding: 10, background: "rgba(255,255,255,0.02)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.05)" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                                    <div style={{ fontSize: 12, color: "#ffffff", flex: 1, minWidth: 200, lineHeight: 1.5 }}>
+                                      {taskText}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+                                      {priority && (
+                                        <span className={`badge ${isCrit ? "badge-red" : isHigh ? "badge-amber" : "badge-blue"}`} style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>
+                                          {priority}
+                                        </span>
+                                      )}
+                                      {count && (
+                                        <span className="badge badge-purple" style={{ fontSize: 10, padding: "1px 6px" }}>
+                                          {count}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {(owner || deliverable) && (
+                                    <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 11, color: "var(--c-text-3)", flexWrap: "wrap" }}>
+                                      {owner && (
+                                        <span>
+                                          <strong style={{ color: "var(--c-text-2)" }}>Lead:</strong> {owner}
+                                        </span>
+                                      )}
+                                      {deliverable && (
+                                        <span>
+                                          <strong style={{ color: "var(--c-text-2)" }}>Deliverable:</strong> {deliverable}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       ))}
                     </div>
