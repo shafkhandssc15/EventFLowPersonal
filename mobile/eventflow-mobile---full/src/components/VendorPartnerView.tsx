@@ -521,7 +521,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
-              
+
 
               <button
                 type="submit"
@@ -529,6 +529,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-lg"
               >
                 {submittingService ? 'Saving to Database...' : 'Save Service to Supabase'}
+                
               </button>
             </form>
           </div>
