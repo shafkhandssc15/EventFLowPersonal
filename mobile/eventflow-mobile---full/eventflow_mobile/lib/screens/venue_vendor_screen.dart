@@ -100,7 +100,7 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
     );
   }
 
-  
+
 
   Widget _buildDialogField(TextEditingController ctrl, String hint, IconData icon, {bool isNumber = false}) {
     return TextField(
@@ -117,6 +117,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
       ),
     );
   }
+
+
 
   @override
   Widget build(BuildContext context) {
