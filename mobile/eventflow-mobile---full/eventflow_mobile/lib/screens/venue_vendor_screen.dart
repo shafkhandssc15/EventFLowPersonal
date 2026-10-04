@@ -419,9 +419,12 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
               ),
             );
           },
-          
+
+
         );
+
       },
+      
     );
   }
 }
