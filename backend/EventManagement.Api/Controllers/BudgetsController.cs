@@ -71,6 +71,7 @@ public class BudgetsController : ControllerBase
     }
 }
 
+
 [ApiController]
 [Route("api/expenses")]
 public class ExpensesController : ControllerBase
