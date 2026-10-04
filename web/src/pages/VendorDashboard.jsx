@@ -546,7 +546,7 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      
+
 
       <div className="page-head">
         <h1 className="page-title">Venues &amp; Vendors Directory</h1>
@@ -1288,6 +1288,8 @@ export default function VendorDashboard() {
                   <div>Email: <strong style={{ color: "#ffffff" }}>{venueDetailModal.contactEmail || "info@venue.lk"}</strong></div>
                 </div>
               </div>
+
+              
 
               {/* Modal Actions */}
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
