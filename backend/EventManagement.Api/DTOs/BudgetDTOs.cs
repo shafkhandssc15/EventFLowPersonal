@@ -14,7 +14,6 @@ public record CreateExpenseRequest(
     decimal Amount
 );
 
-
 public record UpdateExpenseStatusRequest(string Status);
 
 public record DecideApprovalRequest(bool Approve, string? Reason);
