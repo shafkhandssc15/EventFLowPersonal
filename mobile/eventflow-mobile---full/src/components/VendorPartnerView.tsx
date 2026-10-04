@@ -529,10 +529,13 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-lg"
               >
                 {submittingService ? 'Saving to Database...' : 'Save Service to Supabase'}
-                
+
               </button>
+
             </form>
+            
           </div>
+
         </div>
       )}
     </div>
