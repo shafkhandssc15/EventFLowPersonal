@@ -88,6 +88,7 @@ export default function ApprovalQueue() {
 
   async function decide(id, approve) {
     setDec(id);
+    
     try {
       const target = queue.find(q => q.id === id);
       if (target?.isLocal && target.rawItem) {
