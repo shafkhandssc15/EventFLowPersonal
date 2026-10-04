@@ -37,6 +37,7 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
     final capCtrl = TextEditingController(text: '1200');
     final priceCtrl = TextEditingController(text: '45000');
 
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -63,6 +64,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
             ],
           ),
         ),
+
+
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -96,6 +99,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
       ),
     );
   }
+
+  
 
   Widget _buildDialogField(TextEditingController ctrl, String hint, IconData icon, {bool isNumber = false}) {
     return TextField(
