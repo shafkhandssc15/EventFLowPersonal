@@ -3,12 +3,14 @@ import 'package:provider/provider.dart';
 import '../services/supabase_service.dart';
 import '../models/venue_vendor.dart';
 
+
 class VenueVendorScreen extends StatefulWidget {
   const VenueVendorScreen({super.key});
 
   @override
   State<VenueVendorScreen> createState() => _VenueVendorScreenState();
 }
+
 
 class _VenueVendorScreenState extends State<VenueVendorScreen> {
   int _tabIndex = 0; // 0: Venues, 1: Vendors
@@ -34,6 +36,7 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
     final locCtrl = TextEditingController(text: 'Colombo, Sri Lanka');
     final capCtrl = TextEditingController(text: '1200');
     final priceCtrl = TextEditingController(text: '45000');
+
 
     showDialog(
       context: context,
@@ -61,6 +64,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
             ],
           ),
         ),
+
+
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -95,6 +100,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
     );
   }
 
+
+
   Widget _buildDialogField(TextEditingController ctrl, String hint, IconData icon, {bool isNumber = false}) {
     return TextField(
       controller: ctrl,
@@ -110,6 +117,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
       ),
     );
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -214,6 +223,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
             ),
           ),
 
+
+
           // Content List
           Expanded(
             child: _tabIndex == 0 ? _buildVenuesList() : _buildVendorsList(),
@@ -234,6 +245,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
         if (venues.isEmpty) {
           return const Center(child: Text('No venues listed', style: TextStyle(color: Color(0xFF64748B))));
         }
+
+
 
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -293,6 +306,8 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
+
+                  
                   // Amenities tags
                   Wrap(
                     spacing: 6,
@@ -329,6 +344,7 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
         if (vendors.isEmpty) {
           return const Center(child: Text('No vendors listed', style: TextStyle(color: Color(0xFF64748B))));
         }
+
 
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -394,14 +410,22 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
                         },
                         child: const Text('Contact Partner', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
+
                     ],
+
                   ),
                 ],
+
               ),
             );
           },
+
+
         );
+
       },
+      
+
     );
   }
 }

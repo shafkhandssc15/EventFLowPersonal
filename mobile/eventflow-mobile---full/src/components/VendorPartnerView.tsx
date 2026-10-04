@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+
 interface VendorPartnerViewProps {
   currentUser: User | null;
   onOpenLogin: (mode?: 'login' | 'signup') => void;
@@ -25,12 +26,14 @@ interface VendorPartnerViewProps {
 export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
   currentUser,
   onOpenLogin,
+
 }) => {
   const [activeTab, setActiveTab] = useState<'venues' | 'services' | 'requests'>('venues');
   const [venues, setVenues] = useState<Venue[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
 
   // Add Venue Modal
   const [showAddVenue, setShowAddVenue] = useState(false);
@@ -40,12 +43,14 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
   const [vPrice, setVPrice] = useState(75000);
   const [submittingVenue, setSubmittingVenue] = useState(false);
 
+
   // Add Service Modal
   const [showAddService, setShowAddService] = useState(false);
   const [sName, setSName] = useState('');
   const [sType, setSType] = useState('Audio/Visual');
   const [sPrice, setSPrice] = useState(250000);
   const [submittingService, setSubmittingService] = useState(false);
+
 
   const loadData = async () => {
     try {
@@ -62,8 +67,10 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
     }
   };
 
+
   useEffect(() => {
     loadData();
+
 
     // Subscribe to changes in Venues and Vendors
     const channel = supabase
@@ -81,6 +88,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
     setRefreshing(true);
     loadData();
   };
+
 
   // Add Venue to Supabase
   const handleCreateVenue = async (e: React.FormEvent) => {
@@ -102,6 +110,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
         CreatedAt: now,
       });
 
+
       confetti({ particleCount: 40, spread: 50 });
       setShowAddVenue(false);
       setVName('');
@@ -113,6 +122,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
       setSubmittingVenue(false);
     }
   };
+
 
   // Add Vendor Service to Supabase
   const handleCreateService = async (e: React.FormEvent) => {
@@ -133,6 +143,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
         CreatedAt: now,
       });
 
+
       confetti({ particleCount: 40, spread: 50 });
       setShowAddService(false);
       setSName('');
@@ -144,6 +155,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
     }
   };
 
+
   return (
     <div className="p-4 space-y-4 select-none pb-24">
       {/* Top Partner Header */}
@@ -154,6 +166,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           </span>
           <h2 className="text-lg font-black text-white">Venues &amp; Vendor Services</h2>
         </div>
+
 
         <div className="flex items-center gap-2">
           <button
@@ -169,6 +182,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
         </div>
       </div>
 
+
       {/* Partner Purpose Summary Banner */}
       <div className="p-3.5 bg-gradient-to-r from-emerald-950/40 via-teal-950/30 to-slate-950 rounded-2xl border border-emerald-500/20 flex items-start gap-2.5">
         <Briefcase className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -176,6 +190,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           Manage your convention facilities, auditorium capacities, audiovisual equipment packages and catering service contracts for Sri Lankan summits.
         </p>
       </div>
+
 
       {/* Segmented Sub-navigation: Venues / Services / Requests */}
       <div className="grid grid-cols-3 gap-1 p-1 bg-slate-900 rounded-2xl border border-white/5 text-xs">
@@ -191,6 +206,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           <span>Venues ({venues.length})</span>
         </button>
 
+
         <button
           onClick={() => setActiveTab('services')}
           className={`py-2 px-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
@@ -202,6 +218,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           <Briefcase className="w-3.5 h-3.5" />
           <span>Services ({vendors.length})</span>
         </button>
+
 
         <button
           onClick={() => setActiveTab('requests')}
@@ -229,6 +246,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
               <span>List Venue</span>
             </button>
           </div>
+
 
           {loading ? (
             <div className="py-12 text-center text-xs text-slate-400">
@@ -258,6 +276,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                   </span>
                 </div>
 
+
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5 text-[11px]">
                   <div className="flex items-center gap-1.5 text-slate-300">
                     <Users className="w-3.5 h-3.5 text-blue-400" />
@@ -273,6 +292,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
         </div>
       )}
 
+
       {/* TAB 2: VENDOR SERVICES */}
       {activeTab === 'services' && (
         <div className="space-y-3">
@@ -286,6 +306,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
               <span>Add Service</span>
             </button>
           </div>
+
 
           {loading ? (
             <div className="py-12 text-center text-xs text-slate-400">
@@ -302,6 +323,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                 key={vd.Id}
                 className="p-3.5 bg-slate-900/90 border border-white/10 rounded-2xl space-y-2 shadow-lg"
               >
+
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <h4 className="font-extrabold text-white text-xs leading-snug">{vd.Name}</h4>
@@ -314,6 +336,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                   </span>
                 </div>
 
+
                 <div className="text-[10px] text-slate-400 pt-1 border-t border-white/5 flex items-center justify-between">
                   <span>Available for summit contracting</span>
                   <span className="text-emerald-400 font-semibold">Verified Partner</span>
@@ -323,6 +346,9 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           )}
         </div>
       )}
+
+
+
 
       {/* TAB 3: INQUIRIES & REQUESTS */}
       {activeTab === 'requests' && (
@@ -344,6 +370,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
             </div>
           </div>
 
+
           <div className="p-3.5 bg-slate-900/90 border border-white/10 rounded-2xl space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white">Audio/Visual &amp; LED Stage</span>
@@ -362,6 +389,8 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
         </div>
       )}
 
+
+
       {/* MODAL: ADD VENUE */}
       {showAddVenue && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
@@ -376,6 +405,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
               </button>
             </div>
 
+
             <form onSubmit={handleCreateVenue} className="space-y-3">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">Venue Name</label>
@@ -389,6 +419,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                 />
               </div>
 
+
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">Location</label>
                 <input
@@ -400,6 +431,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
+
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -422,6 +454,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                 </div>
               </div>
 
+
               <button
                 type="submit"
                 disabled={submittingVenue}
@@ -433,6 +466,8 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           </div>
         </div>
       )}
+
+
 
       {/* MODAL: ADD SERVICE */}
       {showAddService && (
@@ -461,6 +496,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                 />
               </div>
 
+
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">Service Category</label>
                 <select
@@ -486,15 +522,20 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                 />
               </div>
 
+
               <button
                 type="submit"
                 disabled={submittingService}
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-lg"
               >
                 {submittingService ? 'Saving to Database...' : 'Save Service to Supabase'}
+
               </button>
+
             </form>
+            
           </div>
+
         </div>
       )}
     </div>

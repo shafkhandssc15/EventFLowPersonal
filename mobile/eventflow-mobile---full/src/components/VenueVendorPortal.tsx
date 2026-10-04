@@ -21,6 +21,7 @@ import {
   Compass,
   Check,
 } from 'lucide-react';
+
 import confetti from 'canvas-confetti';
 
 interface VenueVendorPortalProps {
@@ -28,6 +29,7 @@ interface VenueVendorPortalProps {
   onOpenLogin: (mode?: 'login' | 'signup') => void;
   onSelectVenue?: (venue: Venue) => void;
 }
+
 
 const VENUE_AMENITIES_OPTIONS = [
   'Air Conditioning',
@@ -41,6 +43,7 @@ const VENUE_AMENITIES_OPTIONS = [
   'Wheelchair Accessible',
 ];
 
+
 const VENDOR_CATEGORY_OPTIONS = [
   'Audio/Visual & Lighting',
   'Catering & Haute Cuisine',
@@ -50,16 +53,20 @@ const VENDOR_CATEGORY_OPTIONS = [
   'Event MC & Host Agency',
 ];
 
+
+
 export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
   currentUser,
   onOpenLogin,
   onSelectVenue,
+
 }) => {
   const [activeTab, setActiveTab] = useState<'venues' | 'vendors'>('venues');
   const [venues, setVenues] = useState<Venue[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
 
   // Modals
   const [addVenueOpen, setAddVenueOpen] = useState(false);
@@ -71,16 +78,20 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
   const [venueCapacity, setVenueCapacity] = useState('500');
   const [venuePrice, setVenuePrice] = useState('45000');
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([
+
     'Air Conditioning',
     'High-Speed Gigabit WiFi',
+
   ]);
   const [submittingVenue, setSubmittingVenue] = useState(false);
+
 
   // Form states for Vendor
   const [vendorName, setVendorName] = useState('');
   const [vendorCategory, setVendorCategory] = useState(VENDOR_CATEGORY_OPTIONS[0]);
   const [vendorPrice, setVendorPrice] = useState('150000');
   const [submittingVendor, setSubmittingVendor] = useState(false);
+
 
   // Copied indicator
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -100,9 +111,11 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
     }
   };
 
+
   useEffect(() => {
     loadData();
   }, []);
+
 
   const handleCopyLocation = (venue: Venue) => {
     if (venue.Location) {
@@ -110,6 +123,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
       setCopiedId(venue.Id);
       setTimeout(() => setCopiedId(null), 2000);
     }
+
   };
 
   const handleToggleAmenity = (amenity: string) => {
@@ -118,9 +132,11 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
     );
   };
 
+
   const handleCreateVenue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!venueName.trim() || !venueLocation.trim()) return;
+
 
     setSubmittingVenue(true);
     try {
@@ -132,6 +148,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
         ownerId: currentUser?.Id || '00000000-0000-0000-0000-0000000000bb',
       });
 
+
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
       setVenues((prev) => [created, ...prev]);
       setAddVenueOpen(false);
@@ -139,16 +156,19 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
       setVenueLocation('');
       setVenueCapacity('500');
       setVenuePrice('45000');
+
     } catch (err: any) {
       alert('Could not save venue: ' + (err.message || 'Please try again'));
     } finally {
       setSubmittingVenue(false);
+
     }
   };
 
   const handleCreateVendor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vendorName.trim()) return;
+
 
     setSubmittingVendor(true);
     try {
@@ -159,6 +179,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
         ownerId: currentUser?.Id || '00000000-0000-0000-0000-0000000000bb',
       });
 
+
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
       setVendors((prev) => [created, ...prev]);
       setAddVendorOpen(false);
@@ -168,6 +189,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
       alert('Could not save vendor: ' + (err.message || 'Please try again'));
     } finally {
       setSubmittingVendor(false);
+
     }
   };
 
@@ -189,6 +211,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
     );
   });
 
+
   return (
     <div className="p-4 space-y-4 select-none pb-24">
       {/* Header */}
@@ -204,6 +227,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
             Certified event spaces, physical locations &amp; production partners
           </p>
         </div>
+
 
         {isVendorManager ? (
           <button
@@ -223,6 +247,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
           </button>
         )}
       </div>
+
 
       {/* Role Banner: If User is VendorVenueManager */}
       {isVendorManager && (
@@ -246,6 +271,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
         </div>
       )}
 
+
       {/* Sub Tabs: Venues vs Vendors */}
       <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-2xl border border-white/10 text-xs">
         <button
@@ -259,6 +285,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
           <Building2 className="w-3.5 h-3.5" />
           <span>Locations &amp; Venues ({venues.length})</span>
         </button>
+
 
         <button
           onClick={() => setActiveTab('vendors')}
@@ -449,7 +476,9 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                   className="px-4 py-2 bg-blue-600 text-white rounded-full text-xs font-bold"
                 >
                   + Add First Vendor Service
+
                 </button>
+
               )}
             </div>
           ) : (
@@ -496,6 +525,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
         </div>
       )}
 
+
       {/* ================= MODAL: ADD VENUE LOCATION ================= */}
       {addVenueOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none">
@@ -517,6 +547,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
 
             <form
               onSubmit={handleCreateVenue}
@@ -669,6 +700,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                 />
               </div>
+              
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">
@@ -687,6 +719,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                 </select>
               </div>
 
+
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                   Base Package Rate (LKR) *
@@ -701,6 +734,8 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
+
+
 
               <div className="pt-2">
                 <button

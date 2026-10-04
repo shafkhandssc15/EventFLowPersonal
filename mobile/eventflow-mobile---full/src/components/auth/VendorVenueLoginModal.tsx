@@ -15,11 +15,13 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+
 interface VendorVenueLoginModalProps {
   onClose: () => void;
   onSuccess: (user: User) => void;
   onSwitchPortal: (role: UserRole) => void;
 }
+
 
 export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
   onClose,
@@ -34,6 +36,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
 
   // 1-Tap Quick Demo Login as Vendor / Venue Partner
   const handleQuickVendorLogin = async () => {
@@ -58,6 +61,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
         return;
       }
 
+
       onSuccess({
         Id: '00000000-0000-0000-0000-0000000000bb',
         Name: 'BMICH Premier Venues & Staging',
@@ -71,6 +75,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
       setLoading(false);
     }
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +114,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           return;
         }
 
+
         onSuccess({
           Id: crypto.randomUUID(),
           Name: cleanEmail.split('@')[0],
@@ -130,6 +136,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           CreatedAt: now,
           UpdatedAt: now,
         });
+
 
         onSuccess({
           Id: newUserId,
@@ -168,6 +175,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               </p>
             </div>
 
+
             <button
               onClick={onClose}
               className="p-1.5 text-slate-400 hover:text-white rounded-full bg-black/40 hover:bg-black/60 transition shrink-0"
@@ -177,6 +185,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           </div>
         </div>
 
+
         {/* 1-Tap Quick Demo Access */}
         <div className="p-3 bg-emerald-950/40 border-b border-emerald-500/20">
           <button
@@ -185,6 +194,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
             disabled={loading}
             className="w-full py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/40 rounded-xl text-left flex items-center justify-between transition group"
           >
+
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-emerald-500/30 text-emerald-300 flex items-center justify-center font-bold text-xs">
                 BM
@@ -205,6 +215,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           </button>
         </div>
 
+
         {/* Mode Switcher */}
         <div className="px-5 pt-3 flex items-center justify-between border-b border-white/5 pb-2 text-xs">
           <span className="font-bold text-white text-xs">
@@ -221,6 +232,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
             {mode === 'login' ? 'Register Facility / Service' : 'Already registered?'}
           </button>
         </div>
+
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-3.5 overflow-y-auto no-scrollbar">
@@ -272,6 +284,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
             </>
           )}
 
+
           <div>
             <label className="block text-[11px] font-semibold text-slate-300 mb-1">
               Business / Partner Email
@@ -288,6 +301,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               />
             </div>
           </div>
+
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-300 mb-1">
@@ -313,6 +327,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
             </div>
           </div>
 
+
           <button
             type="submit"
             disabled={loading}
@@ -327,6 +342,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           </button>
         </form>
 
+
         {/* Portal Switcher Footer */}
         <div className="p-3 bg-black/60 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
           <span>Need a different portal?</span>
@@ -336,6 +352,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               onClick={() => onSwitchPortal('Attendee')}
               className="text-blue-400 hover:text-blue-300 font-bold"
             >
+
               Attendee
             </button>
             <span>·</span>
@@ -344,6 +361,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               onClick={() => onSwitchPortal('Organizer')}
               className="text-purple-400 hover:text-purple-300 font-bold"
             >
+
               Organizer
             </button>
             <span>·</span>
@@ -352,11 +370,13 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               onClick={() => onSwitchPortal('Admin')}
               className="text-rose-400 hover:text-rose-300 font-bold"
             >
+
               Admin
             </button>
           </div>
         </div>
       </div>
     </div>
+    
   );
 };

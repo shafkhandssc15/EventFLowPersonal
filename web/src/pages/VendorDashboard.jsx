@@ -11,7 +11,9 @@ import { supabase, formatLKR, FALLBACK_IMAGE, getVenueCoordinates } from "../api
 import ImageUploader from "../components/ImageUploader.jsx";
 import { useRealtime } from "../context/RealtimeContext.jsx";
 
+
 const SERVICE_TYPES = ["Audio/Visual", "Catering", "Photography", "Security", "Decoration", "Transportation", "Other"];
+
 
 export default function VendorDashboard() {
   const { user } = useAuth();
@@ -30,6 +32,7 @@ export default function VendorDashboard() {
   const [venueDetailModal, setVenueDetailModal] = useState(null);
   const [editingVenueId, setEditingVenueId] = useState(null);
 
+
   // Availability calendar & Booking inquiry state
   const [platformEvents, setPlatformEvents] = useState([]);
   const [inquiries, setInquiries] = useState([]);
@@ -42,6 +45,7 @@ export default function VendorDashboard() {
     contactPhone: "",
     notes: ""
   });
+
 
   // Map Link & Form state for easy venue registration
   const [mapLinkInput, setMapLinkInput] = useState("");
@@ -508,6 +512,8 @@ export default function VendorDashboard() {
     } catch (err) { setError(err.message); }
   }
 
+
+
   const stats = {
     venues:   venues.length,
     vendors:  vendors.length,
@@ -539,6 +545,8 @@ export default function VendorDashboard() {
           ) : null}
         </div>
       </div>
+
+
 
       <div className="page-head">
         <h1 className="page-title">Venues &amp; Vendors Directory</h1>
@@ -1280,6 +1288,8 @@ export default function VendorDashboard() {
                   <div>Email: <strong style={{ color: "#ffffff" }}>{venueDetailModal.contactEmail || "info@venue.lk"}</strong></div>
                 </div>
               </div>
+
+              
 
               {/* Modal Actions */}
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
