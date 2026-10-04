@@ -85,6 +85,7 @@ public class ExpensesController : ControllerBase
     public record CreateExpenseRequest(Guid BudgetId, string Category, decimal Amount);
 
     // CREATE — logs expense; auto-flags above threshold for approval
+    
     [HttpPost]
     public async Task<ActionResult> Create(CreateExpenseRequest req)
     {
