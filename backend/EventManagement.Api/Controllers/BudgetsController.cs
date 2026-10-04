@@ -3,6 +3,7 @@ using EventManagement.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+
 namespace EventManagement.Api.Controllers;
 
 // Student 4 — Budget & Payments
