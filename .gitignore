@@ -56,3 +56,4 @@ agents/ENV/
 *.swo
 .DS_Store
 Thumbs.db
+jobs.json
