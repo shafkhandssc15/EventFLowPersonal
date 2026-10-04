@@ -453,7 +453,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                   />
                 </div>
               </div>
-              
+
 
               <button
                 type="submit"
@@ -466,6 +466,8 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           </div>
         </div>
       )}
+
+
 
       {/* MODAL: ADD SERVICE */}
       {showAddService && (
@@ -494,6 +496,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                 />
               </div>
 
+
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">Service Category</label>
                 <select
@@ -518,6 +521,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
+              
 
               <button
                 type="submit"
