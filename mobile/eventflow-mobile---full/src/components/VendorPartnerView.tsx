@@ -190,7 +190,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           Manage your convention facilities, auditorium capacities, audiovisual equipment packages and catering service contracts for Sri Lankan summits.
         </p>
       </div>
-      
+
 
       {/* Segmented Sub-navigation: Venues / Services / Requests */}
       <div className="grid grid-cols-3 gap-1 p-1 bg-slate-900 rounded-2xl border border-white/5 text-xs">
@@ -206,6 +206,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           <span>Venues ({venues.length})</span>
         </button>
 
+
         <button
           onClick={() => setActiveTab('services')}
           className={`py-2 px-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
@@ -217,6 +218,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           <Briefcase className="w-3.5 h-3.5" />
           <span>Services ({vendors.length})</span>
         </button>
+
 
         <button
           onClick={() => setActiveTab('requests')}
@@ -244,6 +246,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
               <span>List Venue</span>
             </button>
           </div>
+          
 
           {loading ? (
             <div className="py-12 text-center text-xs text-slate-400">
