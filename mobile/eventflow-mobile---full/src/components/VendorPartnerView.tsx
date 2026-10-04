@@ -42,7 +42,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
   const [vCapacity, setVCapacity] = useState(1500);
   const [vPrice, setVPrice] = useState(75000);
   const [submittingVenue, setSubmittingVenue] = useState(false);
-  
+
 
   // Add Service Modal
   const [showAddService, setShowAddService] = useState(false);
@@ -50,6 +50,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
   const [sType, setSType] = useState('Audio/Visual');
   const [sPrice, setSPrice] = useState(250000);
   const [submittingService, setSubmittingService] = useState(false);
+
 
   const loadData = async () => {
     try {
@@ -66,8 +67,10 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
     }
   };
 
+
   useEffect(() => {
     loadData();
+
 
     // Subscribe to changes in Venues and Vendors
     const channel = supabase
@@ -85,6 +88,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
     setRefreshing(true);
     loadData();
   };
+
 
   // Add Venue to Supabase
   const handleCreateVenue = async (e: React.FormEvent) => {
@@ -105,6 +109,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
         IsActive: true,
         CreatedAt: now,
       });
+      
 
       confetti({ particleCount: 40, spread: 50 });
       setShowAddVenue(false);
