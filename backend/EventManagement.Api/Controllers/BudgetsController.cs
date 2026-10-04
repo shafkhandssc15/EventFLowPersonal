@@ -75,6 +75,7 @@ public class BudgetsController : ControllerBase
 [ApiController]
 [Route("api/expenses")]
 public class ExpensesController : ControllerBase
+
 {
     private readonly AppDbContext _db;
     private const decimal AutoApproveThreshold = 1000m; // business rule: Section 5, Agent 4
