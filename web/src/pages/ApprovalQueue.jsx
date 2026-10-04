@@ -44,6 +44,7 @@ export default function ApprovalQueue() {
   function load() {
     setLoading(true);
     let localPending = [];
+    
     try {
       localPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
     } catch {}
