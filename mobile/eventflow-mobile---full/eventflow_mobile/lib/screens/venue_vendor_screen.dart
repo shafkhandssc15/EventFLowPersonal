@@ -344,7 +344,7 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
         if (vendors.isEmpty) {
           return const Center(child: Text('No vendors listed', style: TextStyle(color: Color(0xFF64748B))));
         }
-        
+
 
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -410,6 +410,7 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
                         },
                         child: const Text('Contact Partner', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
+                      
                     ],
                   ),
                 ],
