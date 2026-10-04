@@ -200,6 +200,7 @@ export default function ApprovalQueue() {
             <div className="empty-desc">No items are pending approval right now.</div>
           </div>
         ) : (
+          
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {queue.map(item => {
               const isDeletion = item.rawItem?.type === "EVENT_DELETION" || item.rawItem?.type === "VENUE_DELETION";
