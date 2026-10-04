@@ -388,7 +388,8 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
           </div>
         </div>
       )}
-      
+
+
 
       {/* MODAL: ADD VENUE */}
       {showAddVenue && (
@@ -404,6 +405,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
               </button>
             </div>
 
+
             <form onSubmit={handleCreateVenue} className="space-y-3">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">Venue Name</label>
@@ -417,6 +419,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                 />
               </div>
 
+
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">Location</label>
                 <input
@@ -428,6 +431,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
+
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -449,6 +453,7 @@ export const VendorPartnerView: React.FC<VendorPartnerViewProps> = ({
                   />
                 </div>
               </div>
+              
 
               <button
                 type="submit"
