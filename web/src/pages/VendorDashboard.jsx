@@ -32,6 +32,7 @@ export default function VendorDashboard() {
   const [venueDetailModal, setVenueDetailModal] = useState(null);
   const [editingVenueId, setEditingVenueId] = useState(null);
 
+
   // Availability calendar & Booking inquiry state
   const [platformEvents, setPlatformEvents] = useState([]);
   const [inquiries, setInquiries] = useState([]);
@@ -44,6 +45,7 @@ export default function VendorDashboard() {
     contactPhone: "",
     notes: ""
   });
+  
 
   // Map Link & Form state for easy venue registration
   const [mapLinkInput, setMapLinkInput] = useState("");
