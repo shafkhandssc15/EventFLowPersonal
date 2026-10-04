@@ -478,7 +478,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                   + Add First Vendor Service
 
                 </button>
-                
+
               )}
             </div>
           ) : (
@@ -525,6 +525,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
         </div>
       )}
 
+
       {/* ================= MODAL: ADD VENUE LOCATION ================= */}
       {addVenueOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none">
@@ -546,6 +547,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
 
             <form
               onSubmit={handleCreateVenue}
@@ -698,6 +700,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                 />
               </div>
+              
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">
@@ -716,6 +719,7 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                 </select>
               </div>
 
+
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                   Base Package Rate (LKR) *
@@ -730,6 +734,8 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
+
+
 
               <div className="pt-2">
                 <button
