@@ -52,6 +52,7 @@ export default function ApprovalQueue() {
     api.approvalQueue()
       .then(d => {
         const apiItems = Array.isArray(d) ? d : d.items || [];
+        
         // Map local deletion approvals to queue format
         const formattedLocal = localPending.map(lp => ({
           id: lp.id,
@@ -65,6 +66,7 @@ export default function ApprovalQueue() {
         }));
         setQueue([...formattedLocal, ...apiItems]);
       })
+      
       .catch(() => {
         const formattedLocal = localPending.map(lp => ({
           id: lp.id,
@@ -76,6 +78,7 @@ export default function ApprovalQueue() {
           isLocal: true,
           rawItem: lp
         }));
+        
         setQueue(formattedLocal);
       })
       .finally(() => setLoading(false));
