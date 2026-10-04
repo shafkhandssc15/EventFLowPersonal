@@ -3,12 +3,14 @@ import 'package:provider/provider.dart';
 import '../services/supabase_service.dart';
 import '../models/venue_vendor.dart';
 
+
 class VenueVendorScreen extends StatefulWidget {
   const VenueVendorScreen({super.key});
 
   @override
   State<VenueVendorScreen> createState() => _VenueVendorScreenState();
 }
+
 
 class _VenueVendorScreenState extends State<VenueVendorScreen> {
   int _tabIndex = 0; // 0: Venues, 1: Vendors
