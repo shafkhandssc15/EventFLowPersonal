@@ -689,7 +689,7 @@ export default function AgentWorkflowRunner() {
                             <div style={{ fontSize: 11, color: "var(--c-text-2)", marginTop: 4 }}>{v.reason}</div>
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <span className="badge badge-green" style={{ fontSize: 11, fontWeight: 800 }}>{v.fitScore}</span>
+                            <span className={`badge ${parseInt(v.fitScore, 10) >= 80 ? "badge-green" : parseInt(v.fitScore, 10) >= 70 ? "badge-blue" : "badge-amber"}`} style={{ fontSize: 11, fontWeight: 800 }}>{v.fitScore}</span>
                             <div style={{ fontSize: 11, color: "#93c5fd", marginTop: 4 }}>{formatLKR(v.costPerHour)}/hr</div>
                           </div>
                         </div>

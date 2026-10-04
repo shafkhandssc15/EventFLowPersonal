@@ -234,30 +234,36 @@ JSON OUTPUT SPECIFICATION:
         (v.name.toLowerCase().includes(String(rv.name || "").toLowerCase()))
       );
 
+      const targetVenue = matched || rv;
+      const computed = calculateVenueFit(targetVenue, capNum, budNum, targetLoc);
+
       return {
         id: matched?.id || rv.id || `ven-${Date.now()}`,
         name: matched?.name || rv.name || "Recommended Venue",
         location: matched?.location || rv.location || targetLoc,
         capacity: matched?.capacity || rv.capacity || capNum,
         costPerHour: matched?.pricePerHour || rv.costPerHour || 60000,
-        fitScore: rv.fitScore || "94% Fit",
-        reason: rv.reason || `Directly matched for ${capNum} attendees in ${targetLoc}.`
+        fitScore: (rv.fitScore && !/^(96|94)% Fit$/i.test(rv.fitScore.trim())) ? rv.fitScore : computed.fitScore,
+        reason: rv.reason || computed.reason
       };
     });
 
     // Ensure at least 1 venue recommendation exists
     if (normalizedVenues.length === 0 && venues.length > 0) {
       const top = venues[0];
+      const computedTop = calculateVenueFit(top, capNum, budNum, targetLoc);
       normalizedVenues.push({
         id: top.id,
         name: top.name,
         location: top.location,
         capacity: top.capacity,
         costPerHour: top.pricePerHour,
-        fitScore: "95% Fit",
-        reason: `Accommodates ${capNum} attendees with optimal capacity fit.`
+        fitScore: computedTop.fitScore,
+        reason: computedTop.reason
       });
     }
+
+    normalizedVenues.sort((a, b) => (parseInt(b.fitScore, 10) || 0) - (parseInt(a.fitScore, 10) || 0));
 
     // Normalize ticket tiers to guarantee numeric fields
     const normalizedTiers = (parsedPlan.ticketTiers || []).map(t => {
@@ -303,12 +309,112 @@ JSON OUTPUT SPECIFICATION:
 }
 
 /**
+ * Calculates a realistic, multi-factor fit score (0-98%) for a venue.
+ * Evaluates:
+ * 1. Capacity Fit & Hall Utilization (up to 44 pts)
+ * 2. Location & Regional Proximity (up to 30 pts)
+ * 3. Budget Feasibility & Cost/Hour (up to 24 pts)
+ */
+export function calculateVenueFit(v, capacity = 500, budget = 1000000, targetLocation = "") {
+  const cap = Math.max(1, Number(capacity) || 500);
+  const bud = Math.max(1, Number(budget) || 1000000);
+  const targetLoc = (targetLocation || "").toLowerCase().trim();
+  const vLoc = (v.location || "").toLowerCase();
+  const vName = (v.name || "").toLowerCase();
+  const vCap = Math.max(1, Number(v.capacity) || 1000);
+  const costPerHour = Number(v.pricePerHour || v.costPerHour) || 60000;
+
+  // 1. Capacity & Hall Utilization (Max 44 pts)
+  let capScore = 0;
+  const utilRatio = cap / vCap;
+  const utilPct = Math.round(utilRatio * 100);
+
+  if (vCap < cap) {
+    // Under capacity: Cannot safely fit all guests
+    capScore = Math.max(8, Math.round(utilRatio * 15));
+  } else if (utilRatio >= 0.35 && utilRatio <= 0.85) {
+    // Optimal capacity sweet-spot: 35% - 85%
+    capScore = 44 - Math.round(Math.abs(utilRatio - 0.60) * 12);
+  } else if (utilRatio > 0.18 && utilRatio < 0.35) {
+    // Generous space, comfortable buffer
+    capScore = 35 + Math.round(utilRatio * 20);
+  } else if (utilRatio > 0.08 && utilRatio <= 0.18) {
+    // Large venue, slight under-utilization
+    capScore = 26 + Math.round(utilRatio * 35);
+  } else {
+    // Massive venue for modest guest count (utilization <= 8%)
+    capScore = 18 + Math.min(6, Math.round(utilRatio * 50));
+  }
+
+  // 2. Geospatial Proximity / Location Match (Max 30 pts)
+  let locScore = 20; // Default baseline for registered venues
+  if (!targetLoc || targetLoc === "colombo" || targetLoc === "sri lanka" || targetLoc.length < 3) {
+    if (vLoc.includes("colombo") || vName.includes("colombo")) {
+      locScore = 28;
+    } else {
+      locScore = 22;
+    }
+  } else {
+    const queryTokens = targetLoc.split(/[\s,.-]+/).filter(t => t.length > 2);
+    const hasMatch = queryTokens.some(t => vLoc.includes(t) || vName.includes(t));
+    if (hasMatch) {
+      locScore = 30;
+    } else if (vLoc.includes("colombo")) {
+      locScore = 23;
+    } else {
+      locScore = 16;
+    }
+  }
+
+  // 3. Budget Feasibility (Max 24 pts)
+  // Assume a standard 6-hour event reservation
+  const estimatedCost = costPerHour * 6;
+  const budgetRatio = estimatedCost / bud;
+  let budScore = 0;
+
+  if (budgetRatio <= 0.35) {
+    // Highly economical (under 35% of total budget)
+    budScore = 24;
+  } else if (budgetRatio <= 0.55) {
+    // Balanced venue expenditure (35% - 55%)
+    budScore = 21;
+  } else if (budgetRatio <= 0.80) {
+    // Premium venue expense (55% - 80%)
+    budScore = 16;
+  } else if (budgetRatio <= 1.10) {
+    // Stretches budget near limit
+    budScore = 11;
+  } else {
+    // Exceeds total event budget
+    budScore = 7;
+  }
+
+  const totalScore = Math.min(98, Math.max(42, capScore + locScore + budScore));
+
+  let reason = "";
+  if (vCap < cap) {
+    reason = `Capacity warning: Exceeds venue maximum (${cap} pax vs ${vCap.toLocaleString()} pax limit).`;
+  } else if (utilPct >= 35 && utilPct <= 85) {
+    reason = `Directly accommodates ${cap} attendees with ${utilPct}% optimal hall utilization in ${v.location}.`;
+  } else if (utilPct > 85) {
+    reason = `High-density accommodation (${utilPct}% capacity utilization) for ${cap} attendees in ${v.location}.`;
+  } else {
+    reason = `Directly accommodates ${cap} attendees with ${utilPct}% hall utilization in ${v.location}.`;
+  }
+
+  return {
+    score: totalScore,
+    fitScore: `${totalScore}% Fit`,
+    reason
+  };
+}
+
+/**
  * Deterministic domain synthesis fallback that strictly reflects user objective
  * and Supabase venues even if LLM network call times out.
  */
 function fallbackCognitiveEngine({ objective, capacity, budget, location, venues, refinementNotes }) {
   const lower = (objective || "").toLowerCase();
-  const targetLower = (location || "").toLowerCase();
   const requiresSafetyGate = budget > 1000000 || capacity >= 200;
 
   let category = "Conference";
@@ -331,30 +437,21 @@ function fallbackCognitiveEngine({ objective, capacity, budget, location, venues
   title = title.charAt(0).toUpperCase() + title.slice(1);
   if (!/202\d/.test(title)) title += " 2027";
 
-  // Score real venues from Supabase
+  // Score real venues from Supabase with realistic multi-factor analysis
   const scoredVenues = venues.map(v => {
-    const vLoc = (v.location || "").toLowerCase();
-    const vName = (v.name || "").toLowerCase();
-    let score = 70;
-
-    if (targetLower && (vLoc.includes(targetLower) || vName.includes(targetLower))) {
-      score += 25;
-    }
-    if (v.capacity >= capacity) {
-      score += 8;
-    }
+    const computed = calculateVenueFit(v, capacity, budget, location);
     return {
       id: v.id,
       name: v.name,
       location: v.location,
       capacity: v.capacity,
       costPerHour: v.pricePerHour,
-      fitScore: `${Math.min(99, score)}% Fit`,
-      reason: `Directly accommodates ${capacity} attendees with ${Math.round((capacity / v.capacity) * 100)}% hall utilization in ${v.location}.`
+      fitScore: computed.fitScore,
+      reason: computed.reason
     };
   });
 
-  scoredVenues.sort((a, b) => parseInt(b.fitScore) - parseInt(a.fitScore));
+  scoredVenues.sort((a, b) => (parseInt(b.fitScore, 10) || 0) - (parseInt(a.fitScore, 10) || 0));
   const venueRecommendations = scoredVenues.slice(0, 3);
   const topVenue = venueRecommendations[0] || { name: "Selected Venue", location };
 
