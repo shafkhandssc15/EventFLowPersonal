@@ -232,7 +232,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
             {mode === 'login' ? 'Register Facility / Service' : 'Already registered?'}
           </button>
         </div>
-        
+
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-3.5 overflow-y-auto no-scrollbar">
@@ -284,6 +284,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
             </>
           )}
 
+
           <div>
             <label className="block text-[11px] font-semibold text-slate-300 mb-1">
               Business / Partner Email
@@ -300,6 +301,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               />
             </div>
           </div>
+
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-300 mb-1">
@@ -324,6 +326,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
               </button>
             </div>
           </div>
+
 
           <button
             type="submit"
