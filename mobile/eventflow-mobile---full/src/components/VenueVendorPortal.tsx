@@ -53,16 +53,20 @@ const VENDOR_CATEGORY_OPTIONS = [
   'Event MC & Host Agency',
 ];
 
+
+
 export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
   currentUser,
   onOpenLogin,
   onSelectVenue,
+
 }) => {
   const [activeTab, setActiveTab] = useState<'venues' | 'vendors'>('venues');
   const [venues, setVenues] = useState<Venue[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
 
   // Modals
   const [addVenueOpen, setAddVenueOpen] = useState(false);
@@ -74,16 +78,20 @@ export const VenueVendorPortal: React.FC<VenueVendorPortalProps> = ({
   const [venueCapacity, setVenueCapacity] = useState('500');
   const [venuePrice, setVenuePrice] = useState('45000');
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([
+
     'Air Conditioning',
     'High-Speed Gigabit WiFi',
+
   ]);
   const [submittingVenue, setSubmittingVenue] = useState(false);
+
 
   // Form states for Vendor
   const [vendorName, setVendorName] = useState('');
   const [vendorCategory, setVendorCategory] = useState(VENDOR_CATEGORY_OPTIONS[0]);
   const [vendorPrice, setVendorPrice] = useState('150000');
   const [submittingVendor, setSubmittingVendor] = useState(false);
+  
 
   // Copied indicator
   const [copiedId, setCopiedId] = useState<string | null>(null);
