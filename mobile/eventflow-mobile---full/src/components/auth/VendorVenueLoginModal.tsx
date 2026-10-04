@@ -15,11 +15,13 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+
 interface VendorVenueLoginModalProps {
   onClose: () => void;
   onSuccess: (user: User) => void;
   onSwitchPortal: (role: UserRole) => void;
 }
+
 
 export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
   onClose,
@@ -35,6 +37,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  
   // 1-Tap Quick Demo Login as Vendor / Venue Partner
   const handleQuickVendorLogin = async () => {
     setLoading(true);
