@@ -18,6 +18,7 @@ export default function ApprovalQueue() {
   if (user?.role !== "Admin") {
     return (
       <>
+        
         <div className="topbar">
           <span className="topbar-title">Approvals</span>
         </div>
