@@ -37,7 +37,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  
+
   // 1-Tap Quick Demo Login as Vendor / Venue Partner
   const handleQuickVendorLogin = async () => {
     setLoading(true);
@@ -61,6 +61,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
         return;
       }
 
+
       onSuccess({
         Id: '00000000-0000-0000-0000-0000000000bb',
         Name: 'BMICH Premier Venues & Staging',
@@ -74,6 +75,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
       setLoading(false);
     }
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,6 +114,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           return;
         }
 
+
         onSuccess({
           Id: crypto.randomUUID(),
           Name: cleanEmail.split('@')[0],
@@ -133,6 +136,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
           CreatedAt: now,
           UpdatedAt: now,
         });
+
 
         onSuccess({
           Id: newUserId,
@@ -170,6 +174,7 @@ export const VendorVenueLoginModal: React.FC<VendorVenueLoginModalProps> = ({
                 Purpose: Manage convention halls, exhibition stalls, AV stage packages, and organizer booking quotes.
               </p>
             </div>
+            
 
             <button
               onClick={onClose}
