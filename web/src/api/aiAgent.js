@@ -63,7 +63,7 @@ export async function fetchRealSupabaseData() {
 }
 
 /**
- * Safely extracts JSON from LLM markdown codeblocks or raw text.
+ * Safely extracts JSON from LLM markdown codeblocks or raw text with trailing comma tolerance.
  */
 function cleanJsonParse(text) {
   if (!text) return null;
@@ -72,7 +72,14 @@ function cleanJsonParse(text) {
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
     if (start !== -1 && end !== -1) {
-      return JSON.parse(cleaned.slice(start, end + 1));
+      const candidate = cleaned.slice(start, end + 1);
+      try {
+        return JSON.parse(candidate);
+      } catch (innerErr) {
+        // Sanitize trailing commas before closing braces or brackets
+        const sanitized = candidate.replace(/,\s*([}\]])/g, "$1");
+        return JSON.parse(sanitized);
+      }
     }
     return JSON.parse(cleaned);
   } catch (err) {
@@ -99,11 +106,11 @@ export async function runAIAgentWorkflow({
   // 1. Fetch Authoritative Data from Supabase
   const { venues, vendors } = await fetchRealSupabaseData();
 
-  const venueContext = venues.map(v => 
+  const venueContext = venues.map(v =>
     `- Venue ID: "${v.id}" | Name: "${v.name}" | Location: "${v.location}" | Max Capacity: ${v.capacity} pax | Rate: Rs. ${v.pricePerHour}/hr`
   ).join("\n");
 
-  const vendorContext = vendors.map(v => 
+  const vendorContext = vendors.map(v =>
     `- Vendor ID: "${v.id}" | Name: "${v.name}" | Service: "${v.serviceType}" | Rate: Rs. ${v.pricePerService}`
   ).join("\n");
 
@@ -228,7 +235,7 @@ JSON OUTPUT SPECIFICATION:
   if (parsedPlan && parsedPlan.title && parsedPlan.milestones && parsedPlan.milestones.length > 0) {
     // Reconcile recommended venues with authoritative Supabase records
     const normalizedVenues = (parsedPlan.venueRecommendations || []).map(rv => {
-      const matched = venues.find(v => 
+      const matched = venues.find(v =>
         (rv.id && v.id === rv.id) ||
         (rv.name && v.name.toLowerCase().includes(rv.name.toLowerCase().slice(0, 15))) ||
         (v.name.toLowerCase().includes(String(rv.name || "").toLowerCase()))
@@ -278,6 +285,44 @@ JSON OUTPUT SPECIFICATION:
       };
     });
 
+    // Normalize milestones so each task has { task, owner, priority, count, deliverable }
+    let normalizedMilestones = (parsedPlan.milestones || []).map(m => {
+      const tasks = (m.tasks || []).map(t => {
+        if (typeof t === "object" && t !== null) {
+          return {
+            task: t.task || t.name || "Operational milestone task",
+            owner: t.owner || "Operations Lead",
+            priority: t.priority || "Standard",
+            count: t.count || `${capNum} pax`,
+            deliverable: t.deliverable || "Verified operation deliverable"
+          };
+        }
+        return {
+          task: String(t),
+          owner: "Operations Coordinator",
+          priority: "Standard",
+          count: `${capNum} attendees`,
+          deliverable: "Standard operational sign-off"
+        };
+      });
+
+      return {
+        phase: m.phase || "Milestone Phase",
+        tasks
+      };
+    });
+
+    if (!normalizedMilestones || normalizedMilestones.length === 0) {
+      normalizedMilestones = generateDomainMilestones(objective, capNum, budNum, targetLoc);
+    }
+
+    const plannerStrategy = parsedPlan.plannerStrategy || {
+      domain: detectedDomain,
+      complexity: capNum >= 500 ? "High Complexity" : capNum >= 200 ? "Medium Complexity" : "Standard Complexity",
+      criticalPath: "Cross-departmental stakeholder synchronization and venue agreement sign-off",
+      targetAudience: `Target ${capNum} attendees and key stakeholders`
+    };
+
     return {
       id: `wf-${Date.now()}`,
       status: requiresSafetyGate ? "PausedForApproval" : "completed",
@@ -285,7 +330,8 @@ JSON OUTPUT SPECIFICATION:
       title: parsedPlan.title,
       category: parsedPlan.category || "Special Event",
       summary: parsedPlan.summary || `Strategic blueprint for "${objective}" in ${targetLoc}.`,
-      milestones: parsedPlan.milestones,
+      plannerStrategy,
+      milestones: normalizedMilestones,
       venueRecommendations: normalizedVenues,
       ticketTiers: normalizedTiers,
       budgetBreakdown: parsedPlan.budgetBreakdown || [
@@ -306,6 +352,408 @@ JSON OUTPUT SPECIFICATION:
 
   // 5. Intelligent Fallback matching user objective & Supabase venues
   return fallbackCognitiveEngine({ objective, capacity: capNum, budget: budNum, location: targetLoc, venues, refinementNotes });
+}
+
+/**
+ * Classifies event objective into specific operational domain.
+ */
+export function detectEventDomain(objective = "") {
+  const obj = (objective || "").toLowerCase();
+  if (/hackathon|code|coding|software|tech|developer|ai|robotics|cyber/i.test(obj)) return "tech";
+  if (/concert|music|acoustic|band|festival|dj|edm|live performance|reggae|rock/i.test(obj)) return "music";
+  if (/sports|tournament|championship|cricket|football|badminton|basketball|marathon|athletics/i.test(obj)) return "sports";
+  if (/wedding|gala|banquet|dinner|reception|anniversary|birthday|party|social/i.test(obj)) return "social";
+  if (/conference|summit|corporate|agm|expo|exhibition|product launch|seminar/i.test(obj)) return "corporate";
+  return "general";
+}
+
+/**
+ * Generates highly customized, domain-specific milestones with actionable task metadata and attendee-scaled counts.
+ */
+export function generateDomainMilestones(objective, capacity = 200, budget = 1000000, location = "Sri Lanka") {
+  const cap = Math.max(10, Number(capacity) || 200);
+  const bud = Math.max(50000, Number(budget) || 1000000);
+  const loc = (location || "Sri Lanka").trim();
+  const domain = detectEventDomain(objective);
+
+  if (domain === "tech") {
+    const teamCount = Math.max(4, Math.round(cap / 4));
+    const wifiDevices = Math.round(cap * 1.5);
+    const apCount = Math.max(2, Math.ceil(cap / 80));
+    const turnstiles = Math.max(1, Math.ceil(cap / 150));
+    const stewards = Math.max(3, Math.ceil(cap / 40));
+    const meals = cap + Math.max(5, Math.round(cap * 0.08));
+    const finalists = Math.min(10, Math.max(3, Math.round(cap / 50)));
+
+    return [
+      {
+        phase: "Phase 1: Pre-Event Infrastructure & Mentorship Matrix (T-60 Days)",
+        tasks: [
+          {
+            task: `Recruit ${Math.max(4, Math.round(cap / 50))} industry mentors and establish ${Math.max(2, Math.round(cap / 100))} domain tracks for ${cap} registered participants`,
+            owner: "Community & Content Lead",
+            priority: "High Priority",
+            count: `${cap} participants`,
+            deliverable: "Confirmed mentor roster & tracks"
+          },
+          {
+            task: `Architect high-density dual-band WiFi infrastructure supporting ${wifiDevices} concurrent devices across ${apCount} access points`,
+            owner: "Network & Infrastructure Lead",
+            priority: "Critical Path",
+            count: `${wifiDevices} devices (${apCount} APs)`,
+            deliverable: "Bandwidth SLA & network topology map"
+          },
+          {
+            task: `Draft automated evaluation rubric and Git repository templates for ${teamCount} competing team pods`,
+            owner: "Academic & Tech Coordinator",
+            priority: "Standard",
+            count: `${teamCount} team pods`,
+            deliverable: "Repo scaffolds & judging rubric"
+          }
+        ]
+      },
+      {
+        phase: "Phase 2: Cloud Sandbox, Power Grid & Swag Logistics (T-14 Days)",
+        tasks: [
+          {
+            task: `Provision ${teamCount} isolated cloud sandbox environments and pre-distribute API credential bundles`,
+            owner: "DevOps Systems Engineer",
+            priority: "Critical Path",
+            count: `${teamCount} cloud sandboxes`,
+            deliverable: "API credentials bundle"
+          },
+          {
+            task: `Deploy ${teamCount} high-output 220V power strips and projection displays across hacker pods in ${loc}`,
+            owner: "AV & Electrical Supervisor",
+            priority: "High Priority",
+            count: `${teamCount} power distribution drops`,
+            deliverable: "Certified electrical load pass"
+          },
+          {
+            task: `Assemble ${cap} personalized hacker swag backpacks containing badges, lanyards, and ${meals} scheduled meal vouchers`,
+            owner: "Logistics Coordinator",
+            priority: "Standard",
+            count: `${cap} delegate packs`,
+            deliverable: "Inventoried delegate backpacks"
+          }
+        ]
+      },
+      {
+        phase: "Phase 3: Rapid Ingress, 24/7 Floor Support & Pitch Finale (Day 0)",
+        tasks: [
+          {
+            task: `Activate ${turnstiles} high-throughput QR turnstile lanes onboarding ${cap} participants with < 30s ingress speed`,
+            owner: "Access Control Lead",
+            priority: "Critical Path",
+            count: `${turnstiles} QR turnstile lanes`,
+            deliverable: "Real-time biometric/QR ingress log"
+          },
+          {
+            task: `Station ${stewards} technical facilitators and 1 certified first-aid medic for 24-hour continuous floor support`,
+            owner: "Security & Safety Lead",
+            priority: "Standard",
+            count: `${stewards} floor staff & 1 medic`,
+            deliverable: "Active station duty roster"
+          },
+          {
+            task: `Conduct live 3-minute pitch showcase for top ${finalists} finalist teams with synchronized judges leaderboard`,
+            owner: "Stage & Showrunner",
+            priority: "High Priority",
+            count: `${finalists} finalist demos`,
+            deliverable: "Scored leaderboard & podium awards"
+          }
+        ]
+      }
+    ];
+  }
+
+  if (domain === "music") {
+    const artists = Math.min(8, Math.max(2, Math.round(cap / 200)));
+    const barrierMeters = Math.max(20, Math.round(cap * 0.15));
+    const soundKw = Math.max(5, Math.round(cap * 0.05));
+    const turnstiles = Math.max(2, Math.ceil(cap / 200));
+    const securityGuards = Math.max(4, Math.ceil(cap / 35));
+
+    return [
+      {
+        phase: "Phase 1: Artist Lineup, Decibel Licensing & Acoustic Survey (T-60 Days)",
+        tasks: [
+          {
+            task: `Negotiate artist rider agreements for ${artists} headline & supporting acts with municipal sound permits`,
+            owner: "Artist Relations Manager",
+            priority: "Critical Path",
+            count: `${artists} performing acts`,
+            deliverable: "Executed contracts & police permit"
+          },
+          {
+            task: `Conduct acoustic mapping & stage rigging engineering for ${cap} concert attendees in ${loc}`,
+            owner: "Chief Audio Engineer",
+            priority: "High Priority",
+            count: `${cap} spectator zone`,
+            deliverable: "Line-array rigging approval"
+          },
+          {
+            task: `Finalize backstage hospitality riders and secure private green room trailers for ${artists} artists`,
+            owner: "Hospitality Coordinator",
+            priority: "Standard",
+            count: `${artists} VIP dressing suites`,
+            deliverable: "Catering & dressing room inventory"
+          }
+        ]
+      },
+      {
+        phase: "Phase 2: Mojo Crowd Barriers, AV Line-Array & Security (T-14 Days)",
+        tasks: [
+          {
+            task: `Erect ${barrierMeters} meters of heavy-duty Mojo crowd-surge barriers with dual-entry pit corridors`,
+            owner: "Site Operations Director",
+            priority: "Critical Path",
+            count: `${barrierMeters}m safety barriers`,
+            deliverable: "Civil safety barrier sign-off"
+          },
+          {
+            task: `Calibrate ${soundKw}kW line-array PA system and multi-angle dynamic stage laser arrays`,
+            owner: "Production Director",
+            priority: "High Priority",
+            count: `${soundKw}kW audio production`,
+            deliverable: "Decibel & audio balance certification"
+          },
+          {
+            task: `Pre-program ${cap} RFID wristbands partitioned by General Admission and VIP Golden Circle`,
+            owner: "Ticketing Lead",
+            priority: "Standard",
+            count: `${cap} RFID wristbands`,
+            deliverable: "Synced access database"
+          }
+        ]
+      },
+      {
+        phase: "Phase 3: Crowd Ingress, Pyrotechnics & Main Stage Live (Day 0)",
+        tasks: [
+          {
+            task: `Deploy ${turnstiles} express RFID scanning gates processing ${cap} fans with zero bottle-necking`,
+            owner: "Gate Operations Lead",
+            priority: "Critical Path",
+            count: `${turnstiles} scanning lanes`,
+            deliverable: "Live gate check-in feed"
+          },
+          {
+            task: `Station ${securityGuards} licensed security guards, 2 paramedics, and 1 ambulance unit on standby`,
+            owner: "Emergency Response Head",
+            priority: "Critical Path",
+            count: `${securityGuards} security officers`,
+            deliverable: "Perimeter security command log"
+          },
+          {
+            task: `Execute live concert stage cues, timed sparkulars, and multi-track live master audio recording`,
+            owner: "Live Show Director",
+            priority: "High Priority",
+            count: `${artists} live stage sets`,
+            deliverable: "Multi-track master recording"
+          }
+        ]
+      }
+    ];
+  }
+
+  if (domain === "sports") {
+    const teams = Math.max(4, Math.round(cap / 20));
+    const athletes = teams * 10;
+    const referees = Math.max(2, Math.ceil(teams / 2));
+    const courts = Math.max(1, Math.ceil(teams / 4));
+    const gates = Math.max(1, Math.ceil(cap / 200));
+
+    return [
+      {
+        phase: "Phase 1: Tournament Bracket, Sanctioning & Medical Safety (T-60 Days)",
+        tasks: [
+          {
+            task: `Seed ${teams} competing teams (${athletes} athletes) and publish official tournament bracket`,
+            owner: "Tournament Director",
+            priority: "Critical Path",
+            count: `${teams} teams (${athletes} athletes)`,
+            deliverable: "Published match schedule"
+          },
+          {
+            task: `Contract ${referees} certified national referees and arrange ambulance medical standby for ${loc}`,
+            owner: "Officiating Coordinator",
+            priority: "High Priority",
+            count: `${referees} match officials`,
+            deliverable: "Signed referee contracts"
+          }
+        ]
+      },
+      {
+        phase: "Phase 2: Playing Surfaces, Live Scoreboards & Athlete Kits (T-14 Days)",
+        tasks: [
+          {
+            task: `Commission ${courts} regulated courts/pitches with synchronized electronic digital scoreboards`,
+            owner: "Facilities Director",
+            priority: "High Priority",
+            count: `${courts} competition zones`,
+            deliverable: "Surface safety certification"
+          },
+          {
+            task: `Distribute ${athletes} personalized athlete kits, jerseys, numbers, and hydration packs`,
+            owner: "Athlete Logistics Manager",
+            priority: "Standard",
+            count: `${athletes} athlete kits`,
+            deliverable: "Weigh-in & gear check verification"
+          }
+        ]
+      },
+      {
+        phase: "Phase 3: Fixture Execution, Spectator Flow & Awards Podium (Day 0)",
+        tasks: [
+          {
+            task: `Direct spectator seating flow for ${cap} ticket holders across ${gates} grandstand turnstiles`,
+            owner: "Spectator Operations",
+            priority: "Critical Path",
+            count: `${cap} spectator capacity`,
+            deliverable: "Grandstand crowd distribution"
+          },
+          {
+            task: "Host championship finals and gold/silver/bronze trophy presentation ceremony",
+            owner: "Ceremonies Lead",
+            priority: "High Priority",
+            count: "3 podium medal sets",
+            deliverable: "Official tournament rankings"
+          }
+        ]
+      }
+    ];
+  }
+
+  if (domain === "social") {
+    const tables = Math.max(2, Math.ceil(cap / 10));
+    const welcomeServings = Math.round(cap * 1.1);
+
+    return [
+      {
+        phase: "Phase 1: Menu Tasting, Seating Architecture & Vendor Holds (T-60 Days)",
+        tasks: [
+          {
+            task: `Finalize 5-course gourmet banquet menu tasting and design ${tables} 10-seater round table layouts in ${loc}`,
+            owner: "Banquet & Hospitality Lead",
+            priority: "Critical Path",
+            count: `${tables} banquet tables`,
+            deliverable: "Approved banquet menu & seating chart"
+          },
+          {
+            task: "Contract principal photographer, 2 4K videographers, and bilingual Master of Ceremonies (MC)",
+            owner: "Creative Producer",
+            priority: "High Priority",
+            count: "4 media & entertainment crew",
+            deliverable: "Executed media contracts & shot-list"
+          }
+        ]
+      },
+      {
+        phase: "Phase 2: Floral Staging, Seating Escort Cards & Soundcheck (T-14 Days)",
+        tasks: [
+          {
+            task: `Fabricate ${tables} bespoke floral centerpieces and assemble ${cap} personalized guest favor gift boxes`,
+            owner: "Floral & Decor Designer",
+            priority: "Standard",
+            count: `${cap} customized favor boxes`,
+            deliverable: "Table decor presentation sign-off"
+          },
+          {
+            task: "Execute full timeline run-through with bridal/host party and MC covering speech audio cues and entrance music",
+            owner: "Lead Event Coordinator",
+            priority: "High Priority",
+            count: "1 complete dress rehearsal",
+            deliverable: "Master run-of-show schedule"
+          }
+        ]
+      },
+      {
+        phase: "Phase 3: Guest Ingress, Banquet Service & Evening Celebration (Day 0)",
+        tasks: [
+          {
+            task: `Welcome ${cap} guests with ${welcomeServings} signature mocktails/cocktails and oversee guestbook registration`,
+            owner: "Guest Relations Lead",
+            priority: "Standard",
+            count: `${welcomeServings} welcome drinks`,
+            deliverable: "Digital guest signature roster"
+          },
+          {
+            task: `Orchestrate synchronized ${cap}-guest dinner service, ceremonial toasts, and celebratory dance floor lighting`,
+            owner: "Head of Floor Operations",
+            priority: "Critical Path",
+            count: `${cap} served guests`,
+            deliverable: "Seamless banquet timetable"
+          }
+        ]
+      }
+    ];
+  }
+
+  // corporate / conference / general
+  const speakers = Math.max(3, Math.round(cap / 80));
+  const booths = Math.max(4, Math.round(cap / 50));
+  const turnstiles = Math.max(1, Math.ceil(cap / 150));
+  const vipPasses = Math.max(10, Math.round(cap * 0.15));
+
+  return [
+    {
+      phase: "Phase 1: Executive Agenda, Speaker Onboarding & Exhibition Blueprint (T-60 Days)",
+      tasks: [
+        {
+          task: `Curate executive summit agenda securing ${speakers} keynote speakers and ${booths} enterprise sponsor booths`,
+          owner: "Program Director",
+          priority: "Critical Path",
+          count: `${speakers} keynote speakers`,
+          deliverable: "Published summit program"
+        },
+        {
+          task: `Design high-flow exhibition floor plan and VIP executive lounge for ${cap} delegates in ${loc}`,
+          owner: "Exhibition Manager",
+          priority: "High Priority",
+          count: `${booths} sponsor exhibition spaces`,
+          deliverable: "Approved trade exhibition layout"
+        }
+      ]
+    },
+    {
+      phase: "Phase 2: NFC Badges, Teleprompter Rehearsals & Livestream Pipeline (T-14 Days)",
+      tasks: [
+        {
+          task: `Pre-encode ${cap} NFC delegate credentials and ${vipPasses} VIP Executive Lounge access passes`,
+          owner: "Registration Lead",
+          priority: "Standard",
+          count: `${cap} NFC badges`,
+          deliverable: "Inventoried delegate badges"
+        },
+        {
+          task: "Execute comprehensive AV dry-run testing teleprompters, presentation switchers, and 4K livestream uplink",
+          owner: "Technical Production Director",
+          priority: "High Priority",
+          count: "2 multi-screen stage test runs",
+          deliverable: "Broadcast uplink certification"
+        }
+      ]
+    },
+    {
+      phase: "Phase 3: Seamless Check-In, Main Stage Keynotes & Executive Mixer (Day 0)",
+      tasks: [
+        {
+          task: `Process ${cap} delegates through ${turnstiles} contactless NFC check-in lanes with average queue time < 20s`,
+          owner: "Ingress Supervisor",
+          priority: "Critical Path",
+          count: `${turnstiles} NFC check-in stations`,
+          deliverable: "Real-time delegate attendance feed"
+        },
+        {
+          task: "Manage plenary sessions, roving Q&A audience microphones, and transition to evening executive networking reception",
+          owner: "Floor Operations Chief",
+          priority: "High Priority",
+          count: `${speakers} hosted plenary sessions`,
+          deliverable: "Recorded proceedings archive"
+        }
+      ]
+    }
+  ];
 }
 
 /**
@@ -464,11 +912,13 @@ function fallbackCognitiveEngine({ objective, capacity, budget, location, venues
     title,
     category,
     summary: `Strategic blueprint for "${objective}". Optimized for ${capacity} attendees at ${topVenue.name} with target budget of ${formatLKR(budget)}.${refinementNotes ? ` Revised with: "${refinementNotes}"` : ""}`,
-    milestones: [
-      { phase: "Phase 1: Pre-Event Logistics (T-60 Days)", tasks: [`Finalize venue hold at ${topVenue.name}`, "Artist & vendor contract signings", "Early bird ticket rollout"] },
-      { phase: "Phase 2: Technical & AV Production (T-14 Days)", tasks: ["Audio-visual & line-array sound checks", "Catering tasting & guest seating blueprint", "Livestreaming equipment test"] },
-      { phase: "Phase 3: Execution & Security (Day 0)", tasks: ["QR entrance turnstile verification", "VIP networking dinner protocol", "Live recording archive"] }
-    ],
+    plannerStrategy: {
+      domain: detectEventDomain(objective),
+      complexity: capacity >= 500 ? "High Complexity" : capacity >= 200 ? "Medium Complexity" : "Standard Complexity",
+      criticalPath: `Coordinate venue hold at ${topVenue.name} and enforce domain critical-path gates`,
+      targetAudience: `Target ${capacity} attendees and domain participants`
+    },
+    milestones: generateDomainMilestones(objective, capacity, budget, location),
     venueRecommendations,
     ticketTiers: [
       { name: "VIP All-Access Pass", price: Math.round(avgPrice * 2), allocatedQty: Math.round(capacity * 0.2), projectedRevenue: Math.round(capacity * 0.2) * Math.round(avgPrice * 2), perks: "VIP seating, green room lounge access, dinner banquet" },
