@@ -148,7 +148,6 @@ export default function ApprovalQueue() {
         }
         
         // Remove from ef_pending_approvals
-        
         try {
           const allPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
           localStorage.setItem("ef_pending_approvals", JSON.stringify(allPending.filter(p => p.id !== id && (!lp.email || p.email?.toLowerCase() !== lp.email?.toLowerCase()))));
