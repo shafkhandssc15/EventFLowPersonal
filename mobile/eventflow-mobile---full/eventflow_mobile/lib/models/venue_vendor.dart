@@ -6,6 +6,7 @@ class VenueModel {
   final double pricePerHour;
   final List<String> amenities;
 
+
   VenueModel({
     required this.id,
     required this.name,
@@ -14,6 +15,7 @@ class VenueModel {
     required this.pricePerHour,
     required this.amenities,
   });
+
 
   factory VenueModel.fromJson(Map<String, dynamic> json) {
     return VenueModel(
@@ -28,6 +30,7 @@ class VenueModel {
     );
   }
 }
+
 
 class VendorModel {
   final String id;
