@@ -45,7 +45,7 @@ export default function VendorDashboard() {
     contactPhone: "",
     notes: ""
   });
-  
+
 
   // Map Link & Form state for easy venue registration
   const [mapLinkInput, setMapLinkInput] = useState("");
@@ -511,6 +511,8 @@ export default function VendorDashboard() {
       });
     } catch (err) { setError(err.message); }
   }
+
+  
 
   const stats = {
     venues:   venues.length,
