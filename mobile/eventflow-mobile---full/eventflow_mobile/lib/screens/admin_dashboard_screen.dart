@@ -124,7 +124,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
 
-            
             const SizedBox(height: 24),
 
             // System Telemetry Banner
@@ -145,6 +144,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       shape: BoxShape.circle,
                     ),
                   ),
+                  
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
