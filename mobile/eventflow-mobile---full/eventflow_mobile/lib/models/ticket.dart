@@ -12,6 +12,8 @@ class UserTicketModel {
 
 
 
+
+
   UserTicketModel({
     required this.registrationId,
     required this.status,

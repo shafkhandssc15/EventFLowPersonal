@@ -3,6 +3,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../services/supabase_service.dart';
 
+
+
 class QrCheckInScreen extends StatefulWidget {
   const QrCheckInScreen({super.key});
 
