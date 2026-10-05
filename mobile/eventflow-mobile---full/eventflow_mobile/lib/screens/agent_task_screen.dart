@@ -111,6 +111,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0x1AFFFFFF))),
                     ),
                   ),
+                  
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: _submitting ? null : () => _submitTask(),
