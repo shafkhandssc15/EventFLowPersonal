@@ -167,6 +167,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 6),
+            
             const Text(
               'Assign permissions across all 4 system roles (Attendee, Organizer, Admin, Venue & Vendor):',
               style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
