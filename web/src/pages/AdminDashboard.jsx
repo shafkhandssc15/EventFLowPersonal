@@ -503,7 +503,7 @@ export default function AdminDashboard() {
   const { totalRevenueLKR, totalPassesSold, organizerRevenueList, eventRevenueList } = (() => {
     try {
       const bookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
-      const confirmed = bookings.filter(b => b.status === "Confirmed");
+      const confirmed = bookings.filter(b => b.status === "Confirmed" || b.status === "Approved");
       const rev = confirmed.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0);
       const passes = confirmed.reduce((s, b) => s + (b.passes?.length || b.passCount || 1), 0);
 
@@ -511,9 +511,21 @@ export default function AdminDashboard() {
 
       const orgMap = {};
       confirmed.forEach(b => {
-        const ev = eventsList.find(e => e.id === b.eventId);
+        const ev = eventsList.find(e =>
+          e.id === b.eventId ||
+          (e.title && b.eventTitle && e.title.toLowerCase().trim() === b.eventTitle.toLowerCase().trim())
+        );
         const orgName = ev?.organizerName || b.organizerName || "Organizer";
-        const orgEmail = ev?.organizerEmail || "";
+        
+        let orgEmail = ev?.organizerEmail || b.organizerEmail || "";
+        if (!orgEmail || !orgEmail.includes("@")) {
+          const matchedUser = users.find(u =>
+            (u.name && orgName && u.name.toLowerCase().trim() === orgName.toLowerCase().trim()) ||
+            (u.role === "Organizer")
+          );
+          orgEmail = matchedUser?.email || "organizer.eventflow@gmail.com";
+        }
+
         if (!orgMap[orgName]) {
           orgMap[orgName] = {
             name: orgName,
@@ -523,7 +535,10 @@ export default function AdminDashboard() {
             revenue: 0,
             bookingCount: 0
           };
+        } else if ((!orgMap[orgName].email || !orgMap[orgName].email.includes("@")) && orgEmail) {
+          orgMap[orgName].email = orgEmail;
         }
+
         if (b.eventId) orgMap[orgName].events.add(b.eventId);
         orgMap[orgName].passesSold += (b.passes?.length || b.passCount || 1);
         orgMap[orgName].revenue += (Number(b.totalAmount) || 0);
@@ -533,13 +548,28 @@ export default function AdminDashboard() {
       const evMap = {};
       confirmed.forEach(b => {
         const title = b.eventTitle || "Event";
+        const ev = eventsList.find(e =>
+          e.id === b.eventId ||
+          (e.title && b.eventTitle && e.title.toLowerCase().trim() === b.eventTitle.toLowerCase().trim())
+        );
+        const orgName = ev?.organizerName || b.organizerName || "Organizer";
+        let orgEmail = ev?.organizerEmail || b.organizerEmail || "";
+        if (!orgEmail || !orgEmail.includes("@")) {
+          const matchedUser = users.find(u =>
+            (u.name && orgName && u.name.toLowerCase().trim() === orgName.toLowerCase().trim()) ||
+            (u.role === "Organizer")
+          );
+          orgEmail = matchedUser?.email || "organizer.eventflow@gmail.com";
+        }
+
         if (!evMap[title]) {
           evMap[title] = {
             title,
             passesSold: 0,
             revenue: 0,
             bookingCount: 0,
-            organizerName: b.organizerName || "Organizer"
+            organizerName: orgName,
+            organizerEmail: orgEmail
           };
         }
         evMap[title].passesSold += (b.passes?.length || b.passCount || 1);
