@@ -280,53 +280,7 @@ export default function AuthPage() {
         return;
       }
 
-      // 3. Fallback for locally registered accounts in localStorage
-      const registeredUsers = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
-      const registeredMatch = registeredUsers.find(
-        u => u.email?.toLowerCase() === cleanEmail && u.password === password
-      );
-
-      if (registeredMatch) {
-        if (registeredMatch.role !== "Attendee" && registeredMatch.role !== "Admin") {
-          try {
-            const { data: dbReqs } = await supabase
-              .from("ApprovalRequests")
-              .select("*")
-              .order("CreatedAt", { ascending: false });
-
-            if (dbReqs && dbReqs.length > 0) {
-              const matchedReq = dbReqs.find(r => {
-                try {
-                  const p = JSON.parse(r.Reason || "{}");
-                  return (p.email || p.applicantEmail || "").toLowerCase().trim() === cleanEmail;
-                } catch {
-                  return false;
-                }
-              });
-
-              if (matchedReq && (matchedReq.Status === "Pending" || matchedReq.Status === "PendingAdminApproval")) {
-                setPendingModal(registeredMatch);
-                throw new Error(`Your ${registeredMatch.role === "VendorVenueManager" ? "Vendor / Venue" : registeredMatch.role} account is pending Admin Verification.`);
-              }
-            }
-          } catch (appErr) {
-            if (appErr.message?.includes("pending")) throw appErr;
-          }
-        }
-
-        login({
-          id: registeredMatch.id,
-          name: registeredMatch.name,
-          role: registeredMatch.role,
-          email: registeredMatch.email,
-          nic: registeredMatch.nic,
-          contact: registeredMatch.contact,
-          address: registeredMatch.address
-        });
-        return;
-      }
-
-      // 4. No valid account found — reject login!
+      // 3. No valid Supabase account found — reject login!
       throw new Error(
         sbErrorMsg ||
         "Invalid email or password. If you don't have an account yet, please click 'Create Account' above to sign up."
