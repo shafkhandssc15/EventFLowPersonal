@@ -186,6 +186,7 @@ export const OrganizerDashboardView: React.FC<OrganizerDashboardViewProps> = ({
     loadSupabaseData();
 
     // Subscribe to live Postgres changes in Supabase for all relevant tables
+    
     const channel = supabase
       .channel('organizer-live-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'Registrations' }, () => {
