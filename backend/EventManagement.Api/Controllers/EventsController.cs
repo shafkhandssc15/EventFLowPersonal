@@ -175,8 +175,93 @@ public class EventsController : ControllerBase
             t.Quantity,
             t.Sold,
             Revenue = t.Price * t.Sold,
-            SoldOut = t.Sold >= t.Quantity
+            SoldOut = t.Sold >= t.Quantity,
+            Remaining = Math.Max(0, t.Quantity - t.Sold)
         });
         return Ok(new { eventId = id, tickets = report, totalRevenue = report.Sum(r => r.Revenue) });
+    }
+
+    // Waitlist — join queue when sold out
+    [HttpPost("{id}/waitlist")]
+    public async Task<ActionResult> JoinWaitlist(Guid id, [FromQuery] Guid attendeeId, [FromQuery] Guid ticketTypeId)
+    {
+        var ticketType = await _db.TicketTypes.FindAsync(ticketTypeId);
+        if (ticketType is null || ticketType.EventId != id) return NotFound("Ticket type not found for this event");
+
+        // Only allow waitlist if actually sold out
+        if (ticketType.Sold < ticketType.Quantity)
+            return BadRequest(new { message = "Tickets still available — no need to join waitlist", available = ticketType.Quantity - ticketType.Sold });
+
+        // Prevent duplicate waitlist entries
+        var existing = await _db.WaitlistEntries
+            .FirstOrDefaultAsync(w => w.TicketTypeId == ticketTypeId && w.AttendeeId == attendeeId && w.Status == WaitlistStatus.Waiting);
+        if (existing != null)
+            return Conflict(new { message = "Already on the waitlist", position = existing.Position, entryId = existing.Id });
+
+        var position = await _db.WaitlistEntries
+            .CountAsync(w => w.TicketTypeId == ticketTypeId && w.Status == WaitlistStatus.Waiting) + 1;
+
+        var entry = new WaitlistEntry
+        {
+            TicketTypeId = ticketTypeId,
+            AttendeeId = attendeeId,
+            Status = WaitlistStatus.Waiting,
+            Position = position
+        };
+        _db.WaitlistEntries.Add(entry);
+
+        // Notify attendee they are on the waitlist
+        _db.Notifications.Add(new Notification
+        {
+            UserId = attendeeId,
+            Channel = "Email",
+            Subject = $"You're #{position} on the waitlist",
+            Body = $"You've been added to the waitlist for ticket type '{ticketType.Name}'. We'll notify you if a spot opens up."
+        });
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = $"Added to waitlist at position #{position}", entryId = entry.Id, position });
+    }
+
+    // Waitlist — view queue for an event
+    [HttpGet("{id}/waitlist")]
+    public async Task<ActionResult> GetWaitlist(Guid id)
+    {
+        var entries = await _db.WaitlistEntries
+            .Include(w => w.Attendee)
+            .Include(w => w.TicketType)
+            .Where(w => w.TicketType != null && w.TicketType.EventId == id && w.Status == WaitlistStatus.Waiting)
+            .OrderBy(w => w.Position)
+            .Select(w => new { w.Id, w.Position, w.Status, w.CreatedAt, AttendeeName = w.Attendee!.Name, AttendeeEmail = w.Attendee.Email, TicketTypeName = w.TicketType!.Name })
+            .ToListAsync();
+        return Ok(entries);
+    }
+
+    // Waitlist — promote top entry when a spot opens (e.g., after cancellation)
+    [HttpPost("{id}/waitlist/{entryId}/promote")]
+    public async Task<ActionResult> PromoteWaitlistEntry(Guid id, Guid entryId)
+    {
+        var entry = await _db.WaitlistEntries.Include(w => w.TicketType).FirstOrDefaultAsync(w => w.Id == entryId);
+        if (entry is null) return NotFound();
+
+        var ticketType = entry.TicketType ?? await _db.TicketTypes.FindAsync(entry.TicketTypeId);
+        if (ticketType is null) return NotFound("Ticket type not found");
+
+        if (ticketType.Sold >= ticketType.Quantity)
+            return Conflict(new { message = "No seats available yet" });
+
+        entry.Status = WaitlistStatus.Notified;
+        entry.NotifiedAt = DateTimeOffset.UtcNow;
+
+        _db.Notifications.Add(new Notification
+        {
+            UserId = entry.AttendeeId,
+            Channel = "Email",
+            Subject = "A spot just opened up!",
+            Body = $"A seat for '{ticketType.Name}' is now available. Please register before it sells out again."
+        });
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Waitlist entry promoted and attendee notified", entry });
     }
 }

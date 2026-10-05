@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
     public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
     public DbSet<AgentExecutionLog> AgentExecutionLogs => Set<AgentExecutionLog>();
+    public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -73,5 +74,6 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<AgentWorkflow>().Property(w => w.Status).HasConversion<string>();
         modelBuilder.Entity<AgentWorkflow>().Property(w => w.ApprovalStatus).HasConversion<string>();
         modelBuilder.Entity<ApprovalRequest>().Property(a => a.Status).HasConversion<string>();
+        modelBuilder.Entity<WaitlistEntry>().Property(w => w.Status).HasConversion<string>();
     }
 }

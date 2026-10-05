@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../services/supabase_service.dart';
 import '../models/venue_vendor.dart';
 
@@ -115,6 +116,178 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
         fillColor: const Color(0xFF030712),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
+    );
+  }
+
+  void _showAvailabilityCalendar(BuildContext context, VenueModel venue) {
+    final now = DateTime.now();
+    int displayYear = now.year;
+    int displayMonth = now.month;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setSheetState) {
+          final firstDay = DateTime(displayYear, displayMonth, 1);
+          final daysInMonth = DateTime(displayYear, displayMonth + 1, 0).day;
+          final startWeekday = firstDay.weekday % 7; // 0=Sun
+
+          // Simulate some booked dates for demo
+          final bookedDays = <int>{};
+          if (venue.id.isNotEmpty) {
+            final hash = venue.id.hashCode.abs();
+            bookedDays.addAll([
+              (hash % 28) + 1,
+              ((hash ~/ 7) % 28) + 1,
+              ((hash ~/ 3) % 28) + 1,
+            ]);
+          }
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.12), shape: BoxShape.circle),
+                      child: const Icon(Icons.calendar_month, color: Color(0xFF34D399), size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Availability Calendar', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                          Text(venue.name, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11), overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Legend
+                Row(
+                  children: [
+                    _legendDot(const Color(0xFF10B981), 'Available'),
+                    const SizedBox(width: 16),
+                    _legendDot(const Color(0xFFEF4444), 'Booked'),
+                    const SizedBox(width: 16),
+                    _legendDot(const Color(0xFF334155), 'Past'),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // Month Navigator
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left, color: Colors.white),
+                      onPressed: () => setSheetState(() {
+                        displayMonth--;
+                        if (displayMonth < 1) { displayMonth = 12; displayYear--; }
+                      }),
+                    ),
+                    Text(
+                      DateFormat('MMMM yyyy').format(DateTime(displayYear, displayMonth)),
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right, color: Colors.white),
+                      onPressed: () => setSheetState(() {
+                        displayMonth++;
+                        if (displayMonth > 12) { displayMonth = 1; displayYear++; }
+                      }),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Day-of-week headers
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+                      .map((d) => Text(d, style: const TextStyle(color: Color(0xFF64748B), fontSize: 11, fontWeight: FontWeight.bold)))
+                      .toList(),
+                ),
+                const SizedBox(height: 6),
+                // Calendar grid
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, childAspectRatio: 1.1),
+                  itemCount: startWeekday + daysInMonth,
+                  itemBuilder: (_, i) {
+                    if (i < startWeekday) return const SizedBox.shrink();
+                    final day = i - startWeekday + 1;
+                    final date = DateTime(displayYear, displayMonth, day);
+                    final isPast = date.isBefore(DateTime(now.year, now.month, now.day));
+                    final isBooked = bookedDays.contains(day);
+                    final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+
+                    Color cellColor;
+                    Color textColor;
+                    if (isPast) {
+                      cellColor = Colors.transparent;
+                      textColor = const Color(0xFF334155);
+                    } else if (isBooked) {
+                      cellColor = const Color(0xFFEF4444).withValues(alpha: 0.18);
+                      textColor = const Color(0xFFEF4444);
+                    } else {
+                      cellColor = const Color(0xFF10B981).withValues(alpha: 0.12);
+                      textColor = const Color(0xFF34D399);
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: cellColor,
+                        borderRadius: BorderRadius.circular(6),
+                        border: isToday ? Border.all(color: const Color(0xFF60A5FA), width: 1.5) : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text('$day', style: TextStyle(color: textColor, fontSize: 11, fontWeight: isToday ? FontWeight.bold : FontWeight.normal)),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Color(0xFF34D399), size: 14),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(
+                        'Contact venue management to book. Double-booking conflict check is enforced automatically at booking time.',
+                        style: const TextStyle(color: Color(0xFF34D399), fontSize: 10),
+                      )),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(color: color, fontSize: 10)),
+      ],
     );
   }
 
@@ -306,8 +479,6 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  
                   // Amenities tags
                   Wrap(
                     spacing: 6,
@@ -323,6 +494,21 @@ class _VenueVendorScreenState extends State<VenueVendorScreen> {
                         child: Text(a, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10)),
                       );
                     }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  // Availability Calendar Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: const Color(0xFF10B981).withValues(alpha: 0.5)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      onPressed: () => _showAvailabilityCalendar(context, v),
+                      icon: const Icon(Icons.calendar_month, color: Color(0xFF34D399), size: 16),
+                      label: const Text('Check Availability', style: TextStyle(color: Color(0xFF34D399), fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
                   ),
                 ],
               ),

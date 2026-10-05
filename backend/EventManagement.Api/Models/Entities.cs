@@ -57,6 +57,19 @@ public class Ticket
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public class WaitlistEntry
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TicketTypeId { get; set; }
+    public TicketType? TicketType { get; set; }
+    public Guid AttendeeId { get; set; }
+    public User? Attendee { get; set; }
+    public WaitlistStatus Status { get; set; } = WaitlistStatus.Waiting;
+    public int Position { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? NotifiedAt { get; set; }
+}
+
 // ---- Student 2: Venue & Vendor Booking ----
 public class Venue
 {

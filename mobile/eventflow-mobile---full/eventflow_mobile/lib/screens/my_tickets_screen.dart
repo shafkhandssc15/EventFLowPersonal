@@ -30,6 +30,111 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
     }
   }
 
+  void _showTransferDialog(UserTicketModel pass) {
+    final emailCtrl = TextEditingController();
+    bool transferring = false;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(ctx2).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(color: const Color(0xFF2563EB).withValues(alpha: 0.15), shape: BoxShape.circle),
+                    child: const Icon(Icons.swap_horiz, color: Color(0xFF60A5FA), size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Transfer Ticket', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('Transfer this pass to another attendee', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF030712),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.confirmation_number_outlined, color: Color(0xFF60A5FA), size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(pass.eventTitle, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                    ),
+                    Text(pass.tierName, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Recipient Email Address',
+                  labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                  prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF64748B), size: 18),
+                  filled: true,
+                  fillColor: const Color(0xFF030712),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: transferring ? null : () async {
+                    if (emailCtrl.text.trim().isEmpty) return;
+                    setSheetState(() => transferring = true);
+                    final res = await context.read<SupabaseService>().transferTicket(
+                      registrationId: pass.registrationId,
+                      newAttendeeEmail: emailCtrl.text.trim(),
+                    );
+                    if (ctx2.mounted) Navigator.pop(ctx2);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(res['success'] == true
+                            ? '✅ ${res['message']}'
+                            : '❌ ${res['message']}'),
+                        backgroundColor: res['success'] == true ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+                        duration: const Duration(seconds: 4),
+                      ));
+                      if (res['success'] == true) _refresh();
+                    }
+                  },
+                  child: transferring
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Confirm Transfer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showQrDialog(UserTicketModel pass) {
     final isUsed = pass.status == 'CheckedIn';
 
@@ -344,9 +449,29 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
                         const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: const [
-                            Text('Tap to show ticket QR code', style: TextStyle(color: Color(0xFF60A5FA), fontSize: 11, fontWeight: FontWeight.bold)),
-                            Icon(Icons.chevron_right, color: Color(0xFF60A5FA), size: 16),
+                          children: [
+                            const Text('Tap to show ticket QR code', style: TextStyle(color: Color(0xFF60A5FA), fontSize: 11, fontWeight: FontWeight.bold)),
+                            if (!isUsed)
+                              GestureDetector(
+                                onTap: () => _showTransferDialog(pass),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.4)),
+                                  ),
+                                  child: const Row(
+                                    children: [
+                                      Icon(Icons.swap_horiz, color: Color(0xFF60A5FA), size: 13),
+                                      SizedBox(width: 4),
+                                      Text('Transfer', style: TextStyle(color: Color(0xFF60A5FA), fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            else
+                              const Icon(Icons.chevron_right, color: Color(0xFF60A5FA), size: 16),
                           ],
                         ),
                       ],

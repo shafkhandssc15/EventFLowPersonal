@@ -11,6 +11,7 @@ import 'screens/agent_task_screen.dart';
 import 'screens/organizer_dashboard_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
 import 'screens/venue_vendor_screen.dart';
+import 'screens/budget_analytics_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -138,6 +139,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           label: 'Venues',
         ),
       );
+
+      screens.add(const BudgetAnalyticsScreen());
+      destinations.add(
+        const NavigationDestination(
+          icon: Icon(Icons.account_balance_wallet_outlined, color: Color(0xFF64748B), size: 22),
+          selectedIcon: Icon(Icons.account_balance_wallet, color: Color(0xFFF59E0B), size: 22),
+          label: 'Budget',
+        ),
+      );
     } else if (role == 'Organizer') {
       screens.add(const OrganizerDashboardScreen());
       destinations.add(
@@ -172,6 +182,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           icon: Icon(Icons.psychology_outlined, color: Color(0xFF64748B), size: 22),
           selectedIcon: Icon(Icons.psychology, color: Color(0xFF60A5FA), size: 22),
           label: 'Agent Tasks',
+        ),
+      );
+
+      screens.add(const BudgetAnalyticsScreen());
+      destinations.add(
+        const NavigationDestination(
+          icon: Icon(Icons.account_balance_wallet_outlined, color: Color(0xFF64748B), size: 22),
+          selectedIcon: Icon(Icons.account_balance_wallet, color: Color(0xFFF59E0B), size: 22),
+          label: 'Budget',
         ),
       );
     } else if (role == 'VendorVenueManager') {

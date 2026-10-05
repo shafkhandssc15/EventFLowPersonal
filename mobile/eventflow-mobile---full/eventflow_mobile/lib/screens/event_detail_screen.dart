@@ -48,12 +48,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       return;
     }
 
+    // Check if sold out — redirect to waitlist
+    final tier = _selectedTier!;
+    if (tier.sold >= tier.quantity && tier.quantity > 0) {
+      await _handleJoinWaitlist();
+      return;
+    }
+
     setState(() => _booking = true);
     try {
       for (int i = 0; i < _quantity; i++) {
         await service.bookTicket(
           eventId: widget.event.id,
-          ticketTypeId: _selectedTier!.id,
+          ticketTypeId: tier.id,
           attendeeId: user.id,
         );
       }
@@ -82,6 +89,45 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             content: Text('Booking error: $e'),
             backgroundColor: const Color(0xFFEF4444),
           ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _booking = false);
+    }
+  }
+
+  Future<void> _handleJoinWaitlist() async {
+    final service = context.read<SupabaseService>();
+    final user = service.currentUser;
+    if (user == null || _selectedTier == null) return;
+    setState(() => _booking = true);
+    try {
+      final res = await service.joinWaitlist(
+        eventId: widget.event.id,
+        ticketTypeId: _selectedTier!.id,
+        ticketTypeName: _selectedTier!.name,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.playlist_add_check, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(res['message'] ?? 'Added to waitlist')),
+              ],
+            ),
+            backgroundColor: const Color(0xFFF59E0B),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Waitlist error: $e'), backgroundColor: const Color(0xFFEF4444)),
         );
       }
     } finally {
@@ -316,6 +362,27 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   ),
 
                   const SizedBox(height: 24),
+                  // Sold-out indicator
+                  if (_selectedTier != null && _selectedTier!.sold >= _selectedTier!.quantity && _selectedTier!.quantity > 0)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Color(0xFFF59E0B), size: 16),
+                          SizedBox(width: 8),
+                          Expanded(child: Text(
+                            'This tier is sold out. You can join the waitlist and we will notify you if a spot opens.',
+                            style: TextStyle(color: Color(0xFFF59E0B), fontSize: 11),
+                          )),
+                        ],
+                      ),
+                    ),
                   // Total and Confirm Button
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -330,31 +397,51 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           ),
                         ],
                       ),
-                      ElevatedButton(
-                        onPressed: _booking || _selectedTier == null ? null : _handleBookTicket,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          elevation: 6,
+                      // Sold-out: show waitlist button; available: show book button
+                      if (_selectedTier != null && _selectedTier!.sold >= _selectedTier!.quantity && _selectedTier!.quantity > 0)
+                        ElevatedButton(
+                          onPressed: _booking ? null : _handleJoinWaitlist,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFF59E0B),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: _booking
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Row(
+                                  children: [
+                                    Icon(Icons.playlist_add_check, color: Colors.white, size: 16),
+                                    SizedBox(width: 6),
+                                    Text('Join Waitlist', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  ],
+                                ),
+                        )
+                      else
+                        ElevatedButton(
+                          onPressed: _booking || _selectedTier == null ? null : _handleBookTicket,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            elevation: 6,
+                          ),
+                          child: _booking
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Row(
+                                  children: [
+                                    Text(
+                                      'Confirm & Book',
+                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                    SizedBox(width: 6),
+                                    Icon(Icons.arrow_forward, color: Colors.white, size: 16),
+                                  ],
+                                ),
                         ),
-                        child: _booking
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                              )
-                            : Row(
-                                children: const [
-                                  Text(
-                                    'Confirm & Book',
-                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                                  ),
-                                  SizedBox(width: 6),
-                                  Icon(Icons.arrow_forward, color: Colors.white, size: 16),
-                                ],
-                              ),
-                      ),
                     ],
                   ),
                 ],
