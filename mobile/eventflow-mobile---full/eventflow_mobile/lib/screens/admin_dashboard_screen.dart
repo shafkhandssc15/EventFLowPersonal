@@ -38,7 +38,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  
   Color _getRoleColor(String role) {
     switch (role) {
       case 'Admin':
