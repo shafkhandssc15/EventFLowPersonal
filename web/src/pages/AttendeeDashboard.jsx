@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
+
+
   IcCalendar, IcMapPin, IcTicket, IcCheckCircle, IcSearch,
   IcUser, IcShield, IcChevronRight, IcClock, IcX, IcCheck,
   IcMail, IcImage, IcAlert, IcSend
@@ -10,6 +12,7 @@ import { supabase, formatLKR, FALLBACK_IMAGE } from "../api/supabase.js";
 import { useRealtime } from "../context/RealtimeContext.jsx";
 import QRCodeVisual from "../components/QRCodeVisual.jsx";
 import BookingChatDrawer from "../components/BookingChatDrawer.jsx";
+
 
 export default function AttendeeDashboard() {
   const { user } = useAuth();
