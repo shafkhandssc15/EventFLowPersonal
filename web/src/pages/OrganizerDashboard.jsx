@@ -281,15 +281,16 @@ export default function OrganizerDashboard() {
 
   // Compute relevant bookings accessible by this user (Organizers & Admins can verify all pending payment slips)
   const relevantBookings = (user?.role === "Admin" || user?.role === "Organizer")
-    ? masterBookings
-    : masterBookings.filter(b => {
+    ? (masterBookings || []).filter(Boolean)
+    : (masterBookings || []).filter(b => {
+        if (!b) return false;
         const matchedEvent = events.find(ev =>
-          ev.id === b.eventId ||
-          (ev.title && b.eventTitle && ev.title.toLowerCase().trim() === b.eventTitle.toLowerCase().trim())
+          ev && (ev.id === b.eventId ||
+          (ev.title && b.eventTitle && ev.title.toLowerCase().trim() === b.eventTitle.toLowerCase().trim()))
         );
         return matchedEvent
           ? isEventCreator(matchedEvent, user)
-          : (b.organizerId === user?.id || (b.organizerEmail && user?.email && b.organizerEmail.toLowerCase() === user.email.toLowerCase()));
+          : (b.organizerId === user?.id || (b.organizerEmail && user?.email && String(b.organizerEmail).toLowerCase() === user.email.toLowerCase()));
       });
 
   // Direct Approve / Reject state
@@ -984,12 +985,12 @@ export default function OrganizerDashboard() {
   }
 
   function isEventCreator(ev, currentUser) {
-    if (!currentUser) return false;
+    if (!ev || !currentUser) return false;
     if (currentUser.role === "Admin") return true;
     if (currentUser.role !== "Organizer") return false;
     if (ev.organizerId && ev.organizerId === currentUser.id) return true;
-    if (currentUser.email && ev.organizerEmail && ev.organizerEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
-    if (currentUser.name && ev.organizerName && ev.organizerName.toLowerCase().includes(currentUser.name.toLowerCase())) return true;
+    if (currentUser.email && ev.organizerEmail && String(ev.organizerEmail).toLowerCase() === currentUser.email.toLowerCase()) return true;
+    if (currentUser.name && ev.organizerName && String(ev.organizerName).toLowerCase().includes(currentUser.name.toLowerCase())) return true;
     if (currentUser.email === "organizer.eventflow@gmail.com" || currentUser.id === "00000000-0000-0000-0000-0000000000aa") return true;
     return false;
   }
