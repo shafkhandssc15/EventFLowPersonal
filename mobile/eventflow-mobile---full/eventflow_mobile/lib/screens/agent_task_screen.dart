@@ -97,6 +97,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
                     'Input event parameters, gate throughput targets, or attendee queries to trigger multi-step agentic analysis.',
                     style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                   ),
+                  
                   const SizedBox(height: 14),
                   TextField(
                     controller: _objectiveController,
