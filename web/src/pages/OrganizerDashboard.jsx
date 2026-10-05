@@ -152,13 +152,106 @@ export default function OrganizerDashboard() {
   // Budget & Analytics State
   const [selectedBudgetEventId, setSelectedBudgetEventId] = useState("");
   const [targetBudgetAmount, setTargetBudgetAmount] = useState(1500000);
-  const [expenses, setExpenses] = useState([
-    { id: "exp-1", category: "Venue Booking", amount: 250000, status: "Approved", notes: "Main Auditorium advance booking", createdAt: new Date(Date.now() - 86400000 * 3).toISOString() },
-    { id: "exp-2", category: "Stage & AV Light", amount: 120000, status: "Pending", notes: "Pro Sound & LED Wall rental (> 100k threshold auto-flagged)", createdAt: new Date(Date.now() - 86400000 * 2).toISOString() },
-    { id: "exp-3", category: "Catering", amount: 180000, status: "Pending", notes: "Delegate Lunch & High Tea (> 100k threshold auto-flagged)", createdAt: new Date(Date.now() - 86400000 * 1).toISOString() },
-    { id: "exp-4", category: "Marketing & Promotion", amount: 45000, status: "Approved", notes: "Social media ads & banners", createdAt: new Date().toISOString() }
-  ]);
+  const [eventExpensesMap, setEventExpensesMap] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ef_event_expenses_map") || "{}");
+    } catch {
+      return {};
+    }
+  });
   const [newExpForm, setNewExpForm] = useState({ category: "Venue Booking", amount: 75000, notes: "" });
+
+  function getEventExpenses(eventId) {
+    return eventExpensesMap[eventId] || [];
+  }
+
+  function addExpenseForEvent(eventId, expenseItem) {
+    const updatedMap = {
+      ...eventExpensesMap,
+      [eventId]: [expenseItem, ...(eventExpensesMap[eventId] || [])]
+    };
+    setEventExpensesMap(updatedMap);
+    localStorage.setItem("ef_event_expenses_map", JSON.stringify(updatedMap));
+    window.dispatchEvent(new Event("storage"));
+  }
+
+  function updateExpenseForEvent(eventId, expenseId, updates) {
+    const currentList = eventExpensesMap[eventId] || [];
+    const updatedList = currentList.map(e => e.id === expenseId ? { ...e, ...updates } : e);
+    const updatedMap = { ...eventExpensesMap, [eventId]: updatedList };
+    setEventExpensesMap(updatedMap);
+    localStorage.setItem("ef_event_expenses_map", JSON.stringify(updatedMap));
+    window.dispatchEvent(new Event("storage"));
+  }
+
+  function deleteExpenseForEvent(eventId, expenseId) {
+    const currentList = eventExpensesMap[eventId] || [];
+    const updatedList = currentList.filter(e => e.id !== expenseId);
+    const updatedMap = { ...eventExpensesMap, [eventId]: updatedList };
+    setEventExpensesMap(updatedMap);
+    localStorage.setItem("ef_event_expenses_map", JSON.stringify(updatedMap));
+    window.dispatchEvent(new Event("storage"));
+  }
+
+  function downloadEventFinancialReport(currentEvent) {
+    if (!currentEvent) return;
+
+    const currentExpenses = getEventExpenses(currentEvent.id);
+    const approvedExpensesSum = currentExpenses.filter(e => e.status === "Approved").reduce((a, b) => a + Number(b.amount), 0);
+    const pendingExpensesSum = currentExpenses.filter(e => e.status === "Pending").reduce((a, b) => a + Number(b.amount), 0);
+    const totalExpenses = approvedExpensesSum + pendingExpensesSum;
+
+    const confirmedBookingsForEvent = relevantBookings.filter(b => b.status === "Confirmed" && (b.eventId === currentEvent.id || b.eventTitle === currentEvent.title));
+    const totalRevenue = confirmedBookingsForEvent.reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+    const netProfit = totalRevenue - approvedExpensesSum;
+
+    let csv = `EVENT FINANCIAL & BUDGET ANALYTICS REPORT\n`;
+    csv += `Report Generated Date,${new Date().toLocaleString()}\n`;
+    csv += `Event Title,${currentEvent.title}\n`;
+    csv += `Category,${currentEvent.category || "General"}\n`;
+    csv += `Venue,${currentEvent.location || "Registered Venue"}\n`;
+    csv += `Capacity,${currentEvent.capacity || 1000} pax\n\n`;
+
+    csv += `FINANCIAL SUMMARY OVERVIEW\n`;
+    csv += `Target Allocated Budget (LKR),${targetBudgetAmount}\n`;
+    csv += `Actual Approved Operating Spent (LKR),${approvedExpensesSum}\n`;
+    csv += `Pending Approval Expenses (LKR),${pendingExpensesSum}\n`;
+    csv += `Total Expenses (LKR),${totalExpenses}\n`;
+    csv += `Ticket Revenue Collected (LKR),${totalRevenue}\n`;
+    csv += `Net Operating Profit/Loss (LKR),${netProfit}\n\n`;
+
+    csv += `TICKET TIER SALES BREAKDOWN\n`;
+    csv += `Tier Name,Price (LKR),Seats Allocated,Passes Sold,Total Revenue (LKR)\n`;
+    (currentEvent.ticketTypes || []).forEach(t => {
+      const sold = confirmedBookingsForEvent.reduce((count, b) => {
+        if (b.tierName && b.tierName.toLowerCase() === t.name.toLowerCase()) {
+          return count + Number(b.passCount || 1);
+        }
+        return count;
+      }, 0);
+      csv += `"${t.name}",${t.price},${t.quantity},${sold},${t.price * sold}\n`;
+    });
+    csv += `\n`;
+
+    csv += `ITEMIZED OPERATING EXPENSE LEDGER\n`;
+    csv += `Expense Category,Notes & Vendor Reference,Amount (LKR),Status,Date Logged\n`;
+    if (currentExpenses.length === 0) {
+      csv += `No expenses logged yet,N/A,0,Approved,N/A\n`;
+    } else {
+      currentExpenses.forEach(exp => {
+        csv += `"${exp.category}","${exp.notes || 'N/A'}",${exp.amount},"${exp.status}","${exp.createdAt ? new Date(exp.createdAt).toLocaleDateString() : ''}"\n`;
+      });
+    }
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Financial_Report_${currentEvent.title.replace(/[^a-zA-Z0-9]/g, "_")}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
   // Compute relevant bookings accessible by this user (Organizers & Admins can verify all pending payment slips)
   const relevantBookings = (user?.role === "Admin" || user?.role === "Organizer")
@@ -1677,101 +1770,149 @@ export default function OrganizerDashboard() {
         {/* TAB 4: BUDGET & ACTUAL ANALYTICS REPORT */}
         {activeTab === "budget" && (
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#ffffff" }}>📊 Budget vs. Actual Analytics Report</div>
-                <div style={{ fontSize: 13, color: "var(--c-text-3)", marginTop: 2 }}>
-                  Comprehensive financial tracking, expense log, and threshold approvals (Section 5 — IT24103303).
-                </div>
-              </div>
-              
-              {/* Target Event Selector */}
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "#93c5fd" }}>Select Event:</label>
-                <select
-                  className="form-input"
-                  style={{ width: 260, fontSize: 12, fontWeight: 700, background: "#0b0f19" }}
-                  value={selectedBudgetEventId || events[0]?.id || ""}
-                  onChange={e => setSelectedBudgetEventId(e.target.value)}
-                >
-                  {events.map(e => (
-                    <option key={e.id} value={e.id}>{e.title}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* KPI Cards */}
             {(() => {
               const currentEvent = events.find(e => e.id === (selectedBudgetEventId || events[0]?.id)) || events[0];
-              const approvedExpensesSum = expenses.filter(e => e.status === "Approved").reduce((a, b) => a + Number(b.amount), 0);
-              const pendingExpensesSum = expenses.filter(e => e.status === "Pending").reduce((a, b) => a + Number(b.amount), 0);
-              const totalSpent = approvedExpensesSum + pendingExpensesSum;
-              const remainingBudget = targetBudgetAmount - totalSpent;
-              
-              // Revenue calculation from confirmed bookings
-              const confirmedBookingsForEvent = relevantBookings.filter(b => b.status === "Confirmed" && (b.eventId === currentEvent?.id || b.eventTitle === currentEvent?.title));
+              const currentExpenses = currentEvent ? getEventExpenses(currentEvent.id) : [];
+
+              const approvedExpensesSum = currentExpenses.filter(e => e.status === "Approved").reduce((a, b) => a + Number(b.amount), 0);
+              const pendingExpensesSum = currentExpenses.filter(e => e.status === "Pending").reduce((a, b) => a + Number(b.amount), 0);
+              const totalExpenses = approvedExpensesSum + pendingExpensesSum;
+              const remainingBudget = targetBudgetAmount - totalExpenses;
+
+              // Actual ticket revenue calculation from confirmed bookings for this event
+              const confirmedBookingsForEvent = relevantBookings.filter(b => b.status === "Confirmed" && (b.eventId === currentEvent?.id || (b.eventTitle && currentEvent?.title && b.eventTitle.toLowerCase().trim() === currentEvent.title.toLowerCase().trim())));
               const totalRevenue = confirmedBookingsForEvent.reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+              const netProfit = totalRevenue - approvedExpensesSum;
 
               return (
                 <div>
-                  {/* KPI Grid */}
+                  {/* Top Bar Header & Controls */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#ffffff", display: "flex", alignItems: "center", gap: 8 }}>
+                        📊 Event-Wise Financial &amp; Budget Analytics Report
+                      </div>
+                      <div style={{ fontSize: 13, color: "var(--c-text-3)", marginTop: 2 }}>
+                        Real-time financial breakdown, ticket tier sales analytics, and threshold expense tracking (Section 5 — IT24103303).
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                      {/* Event Selector Dropdown */}
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <label style={{ fontSize: 12, fontWeight: 700, color: "#93c5fd" }}>Select Event:</label>
+                        <select
+                          className="form-input"
+                          style={{ width: 250, fontSize: 12, fontWeight: 700, background: "#0b0f19", border: "1px solid var(--c-blue)" }}
+                          value={selectedBudgetEventId || events[0]?.id || ""}
+                          onChange={e => setSelectedBudgetEventId(e.target.value)}
+                        >
+                          {events.map(e => (
+                            <option key={e.id} value={e.id}>{e.title}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Download CSV Report Button */}
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => downloadEventFinancialReport(currentEvent)}
+                        style={{ fontSize: 13, fontWeight: 700, background: "#2563eb", borderColor: "#1d4ed8" }}
+                      >
+                        📥 Download Report (CSV)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Selected Event Details Callout Banner */}
+                  {currentEvent && (
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "14px 18px", background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.3)",
+                      borderRadius: 8, marginBottom: 20, flexWrap: "wrap", gap: 12
+                    }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <span className="badge badge-purple">{currentEvent.category || "Technology"}</span>
+                          <span className="badge badge-green">{currentEvent.status || "Published"}</span>
+                        </div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: "#ffffff" }}>{currentEvent.title}</div>
+                        <div style={{ fontSize: 12, color: "var(--c-text-2)", marginTop: 2 }}>
+                          📍 {currentEvent.location} · 🗓️ {currentEvent.startDate ? new Date(currentEvent.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Upcoming"}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 20, fontSize: 13, textAlign: "right" }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--c-text-3)", textTransform: "uppercase" }}>Capacity Limit</div>
+                          <div style={{ fontWeight: 800, color: "#ffffff" }}>{Number(currentEvent.capacity || 1000).toLocaleString()} pax</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--c-text-3)", textTransform: "uppercase" }}>Passes Sold</div>
+                          <div style={{ fontWeight: 800, color: "#34d399" }}>{confirmedBookingsForEvent.length} Bookings</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* KPI Summary Cards */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
                     <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: "1px solid var(--c-border)" }}>
-                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Total Budget Allocated</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: "#ffffff", marginTop: 4 }}>{formatLKR(targetBudgetAmount)}</div>
-                      <div style={{ fontSize: 11, color: "#60a5fa", marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}>
-                        <span>Target Limit</span>
-                      </div>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Allocated Target Budget</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#ffffff", marginTop: 4 }}>{formatLKR(targetBudgetAmount)}</div>
+                      <div style={{ fontSize: 11, color: "#60a5fa", marginTop: 6 }}>Target Ceiling</div>
                     </div>
 
                     <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: "1px solid #059669" }}>
                       <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Actual Approved Spent</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: "#34d399", marginTop: 4 }}>{formatLKR(approvedExpensesSum)}</div>
-                      <div style={{ fontSize: 11, color: "#a7f3d0", marginTop: 6 }}>{expenses.filter(e => e.status === "Approved").length} Expense Items</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#34d399", marginTop: 4 }}>{formatLKR(approvedExpensesSum)}</div>
+                      <div style={{ fontSize: 11, color: "#a7f3d0", marginTop: 6 }}>{currentExpenses.filter(e => e.status === "Approved").length} Expense Ledger Items</div>
                     </div>
 
                     <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: "1px solid #f59e0b" }}>
                       <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Pending Approval (&gt; 100k)</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: "#fbbf24", marginTop: 4 }}>{formatLKR(pendingExpensesSum)}</div>
-                      <div style={{ fontSize: 11, color: "#fef3c7", marginTop: 6 }}>{expenses.filter(e => e.status === "Pending").length} Flagged Threshold Items</div>
-                    </div>
-
-                    <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: `1px solid ${remainingBudget < 0 ? '#ef4444' : 'var(--c-blue)'}` }}>
-                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Remaining Variance</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: remainingBudget < 0 ? "#ef4444" : "#93c5fd", marginTop: 4 }}>{formatLKR(remainingBudget)}</div>
-                      <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 6 }}>{((totalSpent / targetBudgetAmount) * 100).toFixed(1)}% Budget Utilized</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#fbbf24", marginTop: 4 }}>{formatLKR(pendingExpensesSum)}</div>
+                      <div style={{ fontSize: 11, color: "#fef3c7", marginTop: 6 }}>{currentExpenses.filter(e => e.status === "Pending").length} Flagged Threshold Items</div>
                     </div>
 
                     <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: "1px solid #10b981" }}>
-                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Ticket Sales Revenue</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: "#10b981", marginTop: 4 }}>{formatLKR(totalRevenue)}</div>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Actual Ticket Sales Revenue</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#10b981", marginTop: 4 }}>{formatLKR(totalRevenue)}</div>
                       <div style={{ fontSize: 11, color: "#6ee7b7", marginTop: 6 }}>{confirmedBookingsForEvent.length} Confirmed Pass Bookings</div>
+                    </div>
+
+                    <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: `1px solid ${netProfit >= 0 ? '#10b981' : '#ef4444'}` }}>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Net Operating Profit / Loss</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: netProfit >= 0 ? "#10b981" : "#ef4444", marginTop: 4 }}>
+                        {netProfit >= 0 ? `+${formatLKR(netProfit)}` : formatLKR(netProfit)}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 6 }}>Revenue - Operating Expenses</div>
                     </div>
                   </div>
 
-                  {/* Auto-Flagged Threshold Approvals Section */}
-                  {expenses.some(e => e.status === "Pending") && (
+                  {/* Auto-Flagged Threshold Approvals Banner */}
+                  {currentExpenses.some(e => e.status === "Pending") && (
                     <div style={{ marginBottom: 24, padding: 16, background: "rgba(245,158,11,0.08)", border: "1.5px solid #f59e0b", borderRadius: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                         <IcAlert style={{ width: 18, height: 18, color: "#f59e0b" }} />
                         <div style={{ fontSize: 14, fontWeight: 800, color: "#fbbf24" }}>
-                          Auto-Flagged Threshold Expenses (Exceeds LKR 100,000 / $1,000 Rule)
+                          Auto-Flagged Threshold Expenses (Exceeds LKR 100,000 / $1,000 Approval Rule)
                         </div>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {expenses.filter(e => e.status === "Pending").map(exp => (
+                        {currentExpenses.filter(e => e.status === "Pending").map(exp => (
                           <div key={exp.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0b0f19", padding: "10px 14px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)" }}>
                             <div>
                               <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffff" }}>{exp.category} — {formatLKR(exp.amount)}</div>
-                              <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 2 }}>{exp.notes}</div>
+                              <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 2 }}>{exp.notes || "High-value expense item"}</div>
                             </div>
                             <div style={{ display: "flex", gap: 8 }}>
                               <button
                                 type="button"
                                 className="btn btn-success btn-sm"
                                 style={{ fontSize: 11, background: "#059669", color: "#ffffff", fontWeight: 700 }}
-                                onClick={() => setExpenses(prev => prev.map(item => item.id === exp.id ? { ...item, status: "Approved" } : item))}
+                                onClick={() => updateExpenseForEvent(currentEvent.id, exp.id, { status: "Approved" })}
                               >
                                 Approve Expense
                               </button>
@@ -1779,9 +1920,9 @@ export default function OrganizerDashboard() {
                                 type="button"
                                 className="btn btn-danger btn-sm"
                                 style={{ fontSize: 11, background: "#dc2626", color: "#ffffff", fontWeight: 700 }}
-                                onClick={() => setExpenses(prev => prev.filter(item => item.id !== exp.id))}
+                                onClick={() => deleteExpenseForEvent(currentEvent.id, exp.id)}
                               >
-                                Reject
+                                Delete
                               </button>
                             </div>
                           </div>
@@ -1790,102 +1931,170 @@ export default function OrganizerDashboard() {
                     </div>
                   )}
 
-                  {/* Expenses Breakdown & Add Expense Form */}
-                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
-                    {/* Expense Breakdown Table */}
+                  {/* Detailed Tables: Ticket Tier Revenue & Operating Expenses Ledger */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
+                    {/* Ticket Tier Revenue Breakdown Table */}
                     <div className="card" style={{ padding: 20, background: "var(--c-bg-1)" }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "#ffffff" }}>Expense Breakdown List</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "#ffffff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>🎫 Ticket Tier Sales Revenue Breakdown</span>
+                        <span style={{ fontSize: 12, color: "#34d399" }}>Total Revenue: {formatLKR(totalRevenue)}</span>
+                      </div>
                       <div className="table-wrap">
                         <table className="table">
                           <thead>
                             <tr>
-                              <th>Category</th>
-                              <th>Notes &amp; Details</th>
-                              <th>Amount</th>
-                              <th>Status</th>
+                              <th>Ticket Tier Name</th>
+                              <th>Price (LKR)</th>
+                              <th>Seats Allocated</th>
+                              <th>Actual Passes Sold</th>
+                              <th>Tier Revenue Generated</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {expenses.map(exp => (
-                              <tr key={exp.id}>
-                                <td><span className="badge badge-blue">{exp.category}</span></td>
-                                <td style={{ fontSize: 12, color: "var(--c-text-2)" }}>{exp.notes || "N/A"}</td>
-                                <td style={{ fontWeight: 700, color: "#ffffff" }}>{formatLKR(exp.amount)}</td>
-                                <td>
-                                  <span className={`badge ${exp.status === "Approved" ? "badge-green" : "badge-amber"}`}>
-                                    {exp.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
+                            {(currentEvent?.ticketTypes || []).map((tier, idx) => {
+                              const passesSold = confirmedBookingsForEvent.reduce((sum, b) => {
+                                if (b.tierName && b.tierName.toLowerCase() === tier.name.toLowerCase()) {
+                                  return sum + Number(b.passCount || 1);
+                                }
+                                return sum;
+                              }, 0);
+                              const tierRev = Number(tier.price) * passesSold;
+
+                              return (
+                                <tr key={tier.id || idx}>
+                                  <td>
+                                    <div style={{ fontWeight: 700, color: "#ffffff", fontSize: 13 }}>{tier.name}</div>
+                                  </td>
+                                  <td style={{ fontWeight: 700, color: "#93c5fd" }}>{formatLKR(tier.price)}</td>
+                                  <td style={{ fontSize: 12 }}>{Number(tier.quantity || 100).toLocaleString()} seats</td>
+                                  <td style={{ fontWeight: 700, color: "#34d399" }}>{passesSold} sold</td>
+                                  <td style={{ fontWeight: 800, color: "#10b981", fontSize: 14 }}>{formatLKR(tierRev)}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
                     </div>
 
-                    {/* Add New Expense Form */}
-                    <div className="card" style={{ padding: 20, background: "var(--c-bg-1)" }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "#ffffff" }}>Log New Event Expense</div>
-                      <form onSubmit={e => {
-                        e.preventDefault();
-                        const amt = Number(newExpForm.amount);
-                        const isOverThreshold = amt > 100000;
-                        const item = {
-                          id: `exp-${Date.now()}`,
-                          category: newExpForm.category,
-                          amount: amt,
-                          notes: newExpForm.notes,
-                          status: isOverThreshold ? "Pending" : "Approved",
-                          createdAt: new Date().toISOString()
-                        };
-                        setExpenses(prev => [item, ...prev]);
-                        setNewExpForm({ category: "Venue Booking", amount: 75000, notes: "" });
-                        setSuccess(isOverThreshold
-                          ? `Expense of ${formatLKR(amt)} logged. Amount > LKR 100,000 threshold — auto-flagged for approval!`
-                          : `Expense of ${formatLKR(amt)} logged and approved.`);
-                      }}>
-                        <div className="form-group">
-                          <label className="form-label">Expense Category</label>
-                          <select
-                            className="form-input"
-                            value={newExpForm.category}
-                            onChange={e => setNewExpForm(prev => ({ ...prev, category: e.target.value }))}
-                          >
-                            <option>Venue Booking</option>
-                            <option>Stage &amp; AV Light</option>
-                            <option>Catering</option>
-                            <option>Marketing &amp; Promotion</option>
-                            <option>Logistics &amp; Security</option>
-                            <option>Staff &amp; Operations</option>
-                          </select>
+                    {/* Operating Expenses & Log New Expense Grid */}
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+                      {/* Expense Breakdown List */}
+                      <div className="card" style={{ padding: 20, background: "var(--c-bg-1)" }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "#ffffff" }}>
+                          Itemized Operating Expenses Ledger ({currentExpenses.length})
                         </div>
-                        <div className="form-group">
-                          <label className="form-label">Amount (LKR) *</label>
-                          <input
-                            className="form-input"
-                            type="number"
-                            min="1"
-                            required
-                            value={newExpForm.amount}
-                            onChange={e => setNewExpForm(prev => ({ ...prev, amount: e.target.value }))}
-                          />
-                          <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 4 }}>
-                            Amounts &gt; LKR 100,000 ($1,000) are automatically flagged for approval.
+                        {currentExpenses.length === 0 ? (
+                          <div className="empty" style={{ padding: 30 }}>
+                            <div className="empty-title" style={{ fontSize: 14 }}>No operating expenses logged for this event yet</div>
+                            <div className="empty-desc" style={{ fontSize: 12 }}>Use the form on the right to log venue, catering, AV, or marketing expenses.</div>
                           </div>
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Notes &amp; Vendor Reference</label>
-                          <input
-                            className="form-input"
-                            placeholder="e.g. Stage supplier advance"
-                            value={newExpForm.notes}
-                            onChange={e => setNewExpForm(prev => ({ ...prev, notes: e.target.value }))}
-                          />
-                        </div>
-                        <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: 6 }}>
-                          + Log Expense Item
-                        </button>
-                      </form>
+                        ) : (
+                          <div className="table-wrap">
+                            <table className="table">
+                              <thead>
+                                <tr>
+                                  <th>Category</th>
+                                  <th>Notes &amp; Details</th>
+                                  <th>Amount</th>
+                                  <th>Status</th>
+                                  <th>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {currentExpenses.map(exp => (
+                                  <tr key={exp.id}>
+                                    <td><span className="badge badge-blue">{exp.category}</span></td>
+                                    <td style={{ fontSize: 12, color: "var(--c-text-2)" }}>{exp.notes || "N/A"}</td>
+                                    <td style={{ fontWeight: 700, color: "#ffffff" }}>{formatLKR(exp.amount)}</td>
+                                    <td>
+                                      <span className={`badge ${exp.status === "Approved" ? "badge-green" : "badge-amber"}`}>
+                                        {exp.status}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="btn btn-ghost btn-sm"
+                                        style={{ color: "#f87171", fontSize: 11 }}
+                                        onClick={() => deleteExpenseForEvent(currentEvent.id, exp.id)}
+                                      >
+                                        Delete
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Log New Expense Form */}
+                      <div className="card" style={{ padding: 20, background: "var(--c-bg-1)" }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "#ffffff" }}>Log Operating Expense</div>
+                        <form onSubmit={e => {
+                          e.preventDefault();
+                          if (!currentEvent) return;
+                          const amt = Number(newExpForm.amount);
+                          const isOverThreshold = amt > 100000;
+                          const item = {
+                            id: `exp-${Date.now()}`,
+                            category: newExpForm.category,
+                            amount: amt,
+                            notes: newExpForm.notes,
+                            status: isOverThreshold ? "Pending" : "Approved",
+                            createdAt: new Date().toISOString()
+                          };
+                          addExpenseForEvent(currentEvent.id, item);
+                          setNewExpForm({ category: "Venue Booking", amount: 75000, notes: "" });
+                          setSuccess(isOverThreshold
+                            ? `Expense of ${formatLKR(amt)} logged for "${currentEvent.title}". Exceeds LKR 100,000 threshold — auto-flagged for approval!`
+                            : `Expense of ${formatLKR(amt)} logged and approved for "${currentEvent.title}".`);
+                        }}>
+                          <div className="form-group">
+                            <label className="form-label">Expense Category</label>
+                            <select
+                              className="form-input"
+                              value={newExpForm.category}
+                              onChange={e => setNewExpForm(prev => ({ ...prev, category: e.target.value }))}
+                            >
+                              <option>Venue Booking</option>
+                              <option>Stage &amp; AV Light</option>
+                              <option>Catering</option>
+                              <option>Marketing &amp; Promotion</option>
+                              <option>Logistics &amp; Security</option>
+                              <option>Staff &amp; Operations</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Amount (LKR) *</label>
+                            <input
+                              className="form-input"
+                              type="number"
+                              min="1"
+                              required
+                              value={newExpForm.amount}
+                              onChange={e => setNewExpForm(prev => ({ ...prev, amount: e.target.value }))}
+                            />
+                            <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 4 }}>
+                              Amounts &gt; LKR 100,000 ($1,000) are automatically flagged for human approval.
+                            </div>
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Notes &amp; Vendor Reference</label>
+                            <input
+                              className="form-input"
+                              placeholder="e.g. Stage supplier advance"
+                              value={newExpForm.notes}
+                              onChange={e => setNewExpForm(prev => ({ ...prev, notes: e.target.value }))}
+                            />
+                          </div>
+                          <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: 6 }}>
+                            + Log Expense Item
+                          </button>
+                        </form>
+                      </div>
                     </div>
                   </div>
                 </div>
