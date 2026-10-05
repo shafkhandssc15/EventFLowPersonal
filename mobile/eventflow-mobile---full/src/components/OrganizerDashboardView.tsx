@@ -140,6 +140,7 @@ export const OrganizerDashboardView: React.FC<OrganizerDashboardViewProps> = ({
       setPendingPayments(pendingList);
 
       // Build Events Progress List from Supabase
+      
       const progressList: EventProgressItem[] = events
         .filter((e) => e.Status === 'Published')
         .slice(0, 5)
