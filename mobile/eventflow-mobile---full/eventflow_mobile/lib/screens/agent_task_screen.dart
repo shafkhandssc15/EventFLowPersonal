@@ -5,6 +5,7 @@ import '../models/agent_task.dart';
 import '../widgets/reusable_widgets.dart';
 
 /// Agentic Task Submission, Recommendation Display & Workflow Status Screen
+
 /// Fulfills Rubric requirement: "Agentic task submission, recommendation display and workflow status where suitable."
 class AgentTaskScreen extends StatefulWidget {
   const AgentTaskScreen({super.key});
