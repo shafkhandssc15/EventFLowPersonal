@@ -160,11 +160,14 @@ export default function OrganizerDashboard() {
   ]);
   const [newExpForm, setNewExpForm] = useState({ category: "Venue Booking", amount: 75000, notes: "" });
 
-  // Compute relevant bookings accessible by this user
-  const relevantBookings = user?.role === "Admin"
+  // Compute relevant bookings accessible by this user (Organizers & Admins can verify all pending payment slips)
+  const relevantBookings = (user?.role === "Admin" || user?.role === "Organizer")
     ? masterBookings
     : masterBookings.filter(b => {
-        const matchedEvent = events.find(ev => ev.id === b.eventId || ev.title === b.eventTitle);
+        const matchedEvent = events.find(ev =>
+          ev.id === b.eventId ||
+          (ev.title && b.eventTitle && ev.title.toLowerCase().trim() === b.eventTitle.toLowerCase().trim())
+        );
         return matchedEvent
           ? isEventCreator(matchedEvent, user)
           : (b.organizerId === user?.id || (b.organizerEmail && user?.email && b.organizerEmail.toLowerCase() === user.email.toLowerCase()));
