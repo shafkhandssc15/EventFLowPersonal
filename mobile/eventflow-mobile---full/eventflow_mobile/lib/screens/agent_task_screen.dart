@@ -155,6 +155,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
               ErrorBannerWidget(message: _error!, onRetry: () => _submitTask()),
 
             // Active Workflow Status & Recommendations Display
+            
             if (_currentTask != null) ...[
               Container(
                 padding: const EdgeInsets.all(16),
