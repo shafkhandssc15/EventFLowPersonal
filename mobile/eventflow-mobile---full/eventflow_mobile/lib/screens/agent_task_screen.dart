@@ -5,11 +5,13 @@ import '../models/agent_task.dart';
 import '../widgets/reusable_widgets.dart';
 
 /// Agentic Task Submission, Recommendation Display & Workflow Status Screen
+
 /// Fulfills Rubric requirement: "Agentic task submission, recommendation display and workflow status where suitable."
 class AgentTaskScreen extends StatefulWidget {
   const AgentTaskScreen({super.key});
 
   @override
+  
   State<AgentTaskScreen> createState() => _AgentTaskScreenState();
 }
 
@@ -53,6 +55,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
     }
   }
 
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -67,6 +70,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
           ],
         ),
       ),
+      
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -80,6 +84,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: const Color(0x33FFFFFF)),
               ),
+              
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -92,6 +97,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
                     'Input event parameters, gate throughput targets, or attendee queries to trigger multi-step agentic analysis.',
                     style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                   ),
+                  
                   const SizedBox(height: 14),
                   TextField(
                     controller: _objectiveController,
@@ -105,6 +111,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0x1AFFFFFF))),
                     ),
                   ),
+                  
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: _submitting ? null : () => _submitTask(),
@@ -122,6 +129,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
                 ],
               ),
             ),
+            
             const SizedBox(height: 16),
 
             // Quick Operational Presets
@@ -129,7 +137,9 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
               'Operational Presets:',
               style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.bold),
             ),
+            
             const SizedBox(height: 8),
+            
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -145,6 +155,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
               ErrorBannerWidget(message: _error!, onRetry: () => _submitTask()),
 
             // Active Workflow Status & Recommendations Display
+            
             if (_currentTask != null) ...[
               Container(
                 padding: const EdgeInsets.all(16),

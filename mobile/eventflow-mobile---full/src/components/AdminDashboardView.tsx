@@ -98,6 +98,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   };
 
   // Change user role in Supabase
+  
   const handleUpdateRole = async (userId: string, newRole: UserRole) => {
     setUpdatingUserId(userId);
     try {

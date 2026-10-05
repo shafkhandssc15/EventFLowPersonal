@@ -144,6 +144,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       shape: BoxShape.circle,
                     ),
                   ),
+                  
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -166,10 +167,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 6),
+            
             const Text(
               'Assign permissions across all 4 system roles (Attendee, Organizer, Admin, Venue & Vendor):',
               style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
             ),
+            
             const SizedBox(height: 12),
 
             FutureBuilder<List<AppUser>>(
@@ -283,6 +286,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
+      
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
