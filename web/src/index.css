@@ -1266,37 +1266,151 @@ select.form-input option { background: var(--c-bg-2); }
   --c-bg-2:      #f1f5f9;
   --c-bg-3:      #e2e8f0;
   --c-bg-4:      #cbd5e1;
-  --c-surface:   rgba(0, 0, 0, 0.03);
-  --c-surface-h: rgba(0, 0, 0, 0.06);
-  --c-border:    rgba(0, 0, 0, 0.08);
-  --c-border-h:  rgba(0, 0, 0, 0.16);
+  --c-surface:   rgba(0, 0, 0, 0.04);
+  --c-surface-h: rgba(0, 0, 0, 0.08);
+  --c-border:    rgba(0, 0, 0, 0.12);
+  --c-border-h:  rgba(0, 0, 0, 0.22);
 
   --c-text:      #0f172a;
-  --c-text-2:    #475569;
-  --c-text-3:    #94a3b8;
+  --c-text-2:    #334155;
+  --c-text-3:    #64748b;
+
+  --c-blue:      #2563eb;
+  --c-blue-l:    rgba(37,99,235,0.1);
+  --c-blue-b:    rgba(37,99,235,0.25);
 
   --shadow-sm:   0 1px 3px rgba(0,0,0,0.08);
   --shadow:      0 4px 20px rgba(0,0,0,0.08);
   --shadow-lg:   0 20px 40px rgba(0,0,0,0.12);
 }
 
+[data-theme="light"] body {
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
 [data-theme="light"] .topbar {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid var(--c-border);
 }
 
 [data-theme="light"] .sidebar {
   background: #ffffff;
-  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  border-right: 1px solid var(--c-border);
+}
+
+[data-theme="light"] .card,
+[data-theme="light"] .stat-card,
+[data-theme="light"] .event-card,
+[data-theme="light"] .modal-content,
+[data-theme="light"] .drawer-content {
+  background: #ffffff !important;
+  border-color: var(--c-border) !important;
+  color: var(--c-text) !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+}
+
+[data-theme="light"] .form-input,
+[data-theme="light"] .form-select,
+[data-theme="light"] select.form-input,
+[data-theme="light"] input.form-input,
+[data-theme="light"] textarea.form-input {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .form-input::placeholder {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .table-wrap {
+  background: #ffffff;
+  border: 1px solid var(--c-border);
 }
 
 [data-theme="light"] .table thead th {
-  background: rgba(0, 0, 0, 0.03);
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
 }
 
-[data-theme="light"] .event-card {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.08);
+[data-theme="light"] .table td {
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #1e293b !important;
 }
+
+[data-theme="light"] tr:hover td {
+  background: #f8fafc !important;
+}
+
+/* Force dark readable text for element styles with inline white/light colors in light mode */
+[data-theme="light"] div[style*="color: #ffffff"],
+[data-theme="light"] span[style*="color: #ffffff"],
+[data-theme="light"] h1[style*="color: #ffffff"],
+[data-theme="light"] h2[style*="color: #ffffff"],
+[data-theme="light"] h3[style*="color: #ffffff"],
+[data-theme="light"] h4[style*="color: #ffffff"],
+[data-theme="light"] td[style*="color: #ffffff"],
+[data-theme="light"] label[style*="color: #ffffff"],
+[data-theme="light"] div[style*="color:#ffffff"],
+[data-theme="light"] span[style*="color:#ffffff"],
+[data-theme="light"] div[style*="color: #fff"],
+[data-theme="light"] span[style*="color: #fff"],
+[data-theme="light"] h1[style*="color: #fff"],
+[data-theme="light"] h2[style*="color: #fff"] {
+  color: #0f172a !important;
+}
+
+/* Accent text color contrast adjustments for Light Mode */
+[data-theme="light"] span[style*="color: #60a5fa"],
+[data-theme="light"] div[style*="color: #60a5fa"],
+[data-theme="light"] label[style*="color: #93c5fd"],
+[data-theme="light"] span[style*="color: #93c5fd"],
+[data-theme="light"] td[style*="color: #93c5fd"] {
+  color: #1d4ed8 !important;
+}
+
+[data-theme="light"] span[style*="color: #34d399"],
+[data-theme="light"] div[style*="color: #34d399"],
+[data-theme="light"] div[style*="color: #10b981"],
+[data-theme="light"] span[style*="color: #10b981"],
+[data-theme="light"] td[style*="color: #10b981"] {
+  color: #047857 !important;
+}
+
+[data-theme="light"] span[style*="color: #a78bfa"],
+[data-theme="light"] div[style*="color: #a78bfa"],
+[data-theme="light"] span[style*="color: #c084fc"] {
+  color: #6d28d9 !important;
+}
+
+[data-theme="light"] span[style*="color: #fbbf24"],
+[data-theme="light"] div[style*="color: #fbbf24"],
+[data-theme="light"] div[style*="color: #f59e0b"] {
+  color: #b45309 !important;
+}
+
+/* Light Mode dark container override */
+[data-theme="light"] div[style*="background: #0b0f19"],
+[data-theme="light"] div[style*="background:#0b0f19"],
+[data-theme="light"] select[style*="background: #0b0f19"] {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Badges in Light Mode */
+[data-theme="light"] .badge-blue   { background: #dbeafe !important; color: #1e40af !important; }
+[data-theme="light"] .badge-green  { background: #dcfce7 !important; color: #15803d !important; }
+[data-theme="light"] .badge-amber  { background: #fef3c7 !important; color: #b45309 !important; }
+[data-theme="light"] .badge-red    { background: #fee2e2 !important; color: #b91c1c !important; }
+[data-theme="light"] .badge-gray   { background: #e2e8f0 !important; color: #334155 !important; }
+[data-theme="light"] .badge-purple { background: #f3e8ff !important; color: #6b21a8 !important; }
+
+/* Empty state text in Light Mode */
+[data-theme="light"] .empty-title { color: #0f172a !important; }
+[data-theme="light"] .empty-desc { color: #475569 !important; }
 
 /* ══════════════════════════════════════
    RESPONSIVE DESIGN (TABLETS & MOBILE)
