@@ -143,11 +143,32 @@ export default function OrganizerDashboard() {
   const [editingEventId, setEditingEventId] = useState(null);
 
   // Payment Verification & Messaging state
-  const [activeTab, setActiveTab]     = useState("events"); // "events" | "slips" | "tickets"
+  const [activeTab, setActiveTab]     = useState("events"); // "events" | "slips" | "tickets" | "budget"
   const [eventFilter, setEventFilter] = useState("mine"); // "mine" | "all"
   const [masterBookings, setMasterBookings] = useState([]);
   const [selectedChatBooking, setSelectedChatBooking] = useState(null);
   const [slipFilter, setSlipFilter]   = useState("All"); // "All" | "PendingApproval" | "Confirmed" | "Rejected"
+
+  // Budget & Analytics State
+  const [selectedBudgetEventId, setSelectedBudgetEventId] = useState("");
+  const [targetBudgetAmount, setTargetBudgetAmount] = useState(1500000);
+  const [expenses, setExpenses] = useState([
+    { id: "exp-1", category: "Venue Booking", amount: 250000, status: "Approved", notes: "Main Auditorium advance booking", createdAt: new Date(Date.now() - 86400000 * 3).toISOString() },
+    { id: "exp-2", category: "Stage & AV Light", amount: 120000, status: "Pending", notes: "Pro Sound & LED Wall rental (> 100k threshold auto-flagged)", createdAt: new Date(Date.now() - 86400000 * 2).toISOString() },
+    { id: "exp-3", category: "Catering", amount: 180000, status: "Pending", notes: "Delegate Lunch & High Tea (> 100k threshold auto-flagged)", createdAt: new Date(Date.now() - 86400000 * 1).toISOString() },
+    { id: "exp-4", category: "Marketing & Promotion", amount: 45000, status: "Approved", notes: "Social media ads & banners", createdAt: new Date().toISOString() }
+  ]);
+  const [newExpForm, setNewExpForm] = useState({ category: "Venue Booking", amount: 75000, notes: "" });
+
+  // Compute relevant bookings accessible by this user
+  const relevantBookings = user?.role === "Admin"
+    ? masterBookings
+    : masterBookings.filter(b => {
+        const matchedEvent = events.find(ev => ev.id === b.eventId || ev.title === b.eventTitle);
+        return matchedEvent
+          ? isEventCreator(matchedEvent, user)
+          : (b.organizerId === user?.id || (b.organizerEmail && user?.email && b.organizerEmail.toLowerCase() === user.email.toLowerCase()));
+      });
 
   // Direct Approve / Reject state
   const [rejectTarget, setRejectTarget]     = useState(null);  // booking being rejected
@@ -163,7 +184,37 @@ export default function OrganizerDashboard() {
     endDate: "",
     capacity: 1000,
     price: 7500,
+    ticketTiers: [
+      { id: "tier-1", name: "Early Bird Pass", price: 5000, quantity: 250 },
+      { id: "tier-2", name: "General Admission", price: 7500, quantity: 500 },
+      { id: "tier-3", name: "VIP Executive Pass", price: 15000, quantity: 250 }
+    ]
   });
+
+  function addTicketTier() {
+    setForm(f => ({
+      ...f,
+      ticketTiers: [
+        ...f.ticketTiers,
+        { id: `tier-${Date.now()}`, name: "Custom Pass Tier", price: 10000, quantity: 100 }
+      ]
+    }));
+  }
+
+  function removeTicketTier(idx) {
+    if (form.ticketTiers.length <= 1) return;
+    setForm(f => ({
+      ...f,
+      ticketTiers: f.ticketTiers.filter((_, i) => i !== idx)
+    }));
+  }
+
+  function updateTicketTier(idx, field, val) {
+    setForm(f => ({
+      ...f,
+      ticketTiers: f.ticketTiers.map((t, i) => i === idx ? { ...t, [field]: val } : t)
+    }));
+  }
 
   function loadAll() {
     setLoading(true);
@@ -646,7 +697,13 @@ export default function OrganizerDashboard() {
         capacity:  Number(form.capacity),
         status:    finalStatus,
         image:     form.image || selectedVenue.image || FALLBACK_IMAGE,
-        ticketTypes: [
+        ticketTypes: (form.ticketTiers && form.ticketTiers.length > 0) ? form.ticketTiers.map((t, idx) => ({
+          id: t.id || `tt-lk-${Date.now()}-${idx + 1}`,
+          name: t.name.trim() || `Tier ${idx + 1}`,
+          price: Number(t.price) || 0,
+          quantity: Number(t.quantity) || 100,
+          sold: t.sold || 0
+        })) : [
           {
             id: `tt-lk-${Date.now()}-1`,
             name: "Standard Delegate Pass",
@@ -678,7 +735,12 @@ export default function OrganizerDashboard() {
       setForm({
         title: "", description: "", category: "Technology",
         venueId: registeredVenues[0]?.id || "",
-        startDate: "", endDate: "", capacity: registeredVenues[0]?.capacity || 1000, price: 7500
+        startDate: "", endDate: "", capacity: registeredVenues[0]?.capacity || 1000, price: 7500,
+        ticketTiers: [
+          { id: "tier-1", name: "Early Bird Pass", price: 5000, quantity: 250 },
+          { id: "tier-2", name: "General Admission", price: 7500, quantity: 500 },
+          { id: "tier-3", name: "VIP Executive Pass", price: 15000, quantity: 250 }
+        ]
       });
     } catch (err) {
       setError(err.message);
@@ -713,7 +775,14 @@ export default function OrganizerDashboard() {
       endDate: ev.endDate ? ev.endDate.substring(0, 16) : "",
       capacity: ev.capacity || 1000,
       price: ev.ticketTypes?.[0]?.price || 7500,
-      image: ev.image || ev.imageUrl || ""
+      image: ev.image || ev.imageUrl || "",
+      ticketTiers: (ev.ticketTypes && ev.ticketTypes.length > 0)
+        ? ev.ticketTypes.map(t => ({ id: t.id, name: t.name, price: t.price, quantity: t.quantity, sold: t.sold || 0 }))
+        : [
+            { id: "tier-1", name: "Early Bird Pass", price: 5000, quantity: 250 },
+            { id: "tier-2", name: "General Admission", price: ev.ticketTypes?.[0]?.price || 7500, quantity: 500 },
+            { id: "tier-3", name: "VIP Executive Pass", price: 15000, quantity: 250 }
+          ]
     });
     const v = registeredVenues.find(ven => ven.id === (ev.venueId || registeredVenues[0]?.id));
     if (v) setSelectedVenue(v);
@@ -1014,10 +1083,74 @@ export default function OrganizerDashboard() {
                     value={form.endDate} onChange={e => setF("endDate", e.target.value)} />
                 </div>
 
-                <div className="form-group" style={{ gridColumn: "1/-1" }}>
-                  <label className="form-label">Standard Ticket Price (LKR) *</label>
-                  <input className="form-input" type="number" min="0" value={form.price}
-                    onChange={e => setF("price", e.target.value)} />
+                {/* Dynamic Ticket Tiers Section */}
+                <div className="form-group" style={{ gridColumn: "1/-1", background: "rgba(255,255,255,0.03)", padding: 16, borderRadius: 8, border: "1px solid var(--c-border)", marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#ffffff" }}>🎫 Multi-Tier Ticket Pricing Configuration</div>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)" }}>Configure ticket options (e.g. Early Bird, VIP, General Admission) with prices and seat allocations.</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={addTicketTier}
+                      style={{ fontSize: 12, border: "1px solid var(--c-blue)", color: "#60a5fa" }}
+                    >
+                      <IcPlus style={{ width: 12, height: 12 }} /> Add Ticket Tier
+                    </button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {form.ticketTiers.map((tier, idx) => (
+                      <div key={idx} style={{ display: "flex", gap: 10, alignItems: "center", background: "#0b0f19", padding: "10px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <div style={{ flex: 2 }}>
+                          <label style={{ fontSize: 10, color: "var(--c-text-3)", display: "block" }}>Tier Name *</label>
+                          <input
+                            className="form-input"
+                            style={{ height: 34, fontSize: 12, fontWeight: 600 }}
+                            value={tier.name}
+                            onChange={e => updateTicketTier(idx, "name", e.target.value)}
+                            placeholder="e.g. VIP Pass, Early Bird"
+                            required
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: 10, color: "var(--c-text-3)", display: "block" }}>Price (LKR) *</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="0"
+                            style={{ height: 34, fontSize: 12, fontWeight: 600 }}
+                            value={tier.price}
+                            onChange={e => updateTicketTier(idx, "price", e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: 10, color: "var(--c-text-3)", display: "block" }}>Seats Allocated</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="1"
+                            style={{ height: 34, fontSize: 12, fontWeight: 600 }}
+                            value={tier.quantity}
+                            onChange={e => updateTicketTier(idx, "quantity", e.target.value)}
+                            required
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          disabled={form.ticketTiers.length <= 1}
+                          onClick={() => removeTicketTier(idx)}
+                          style={{ color: "#f87171", padding: 6, marginTop: 14 }}
+                          title="Remove tier"
+                        >
+                          <IcX style={{ width: 14, height: 14 }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Cover Photo Drag & Drop / Device Upload */}
@@ -1070,7 +1203,7 @@ export default function OrganizerDashboard() {
             style={{ fontSize: 13, fontWeight: 700, position: "relative" }}
           >
             <IcImage style={{ width: 14, height: 14 }} /> Payment Slip Verifications
-            {masterBookings.filter(b => b.status === "PendingApproval").length > 0 && (
+            {relevantBookings.filter(b => b.status === "PendingApproval").length > 0 && (
               <span
                 style={{
                   background: "#f59e0b",
@@ -1082,7 +1215,7 @@ export default function OrganizerDashboard() {
                   marginLeft: 6
                 }}
               >
-                {masterBookings.filter(b => b.status === "PendingApproval").length} Pending
+                {relevantBookings.filter(b => b.status === "PendingApproval").length} Pending
               </span>
             )}
           </button>
@@ -1093,7 +1226,7 @@ export default function OrganizerDashboard() {
             style={{ fontSize: 13, fontWeight: 700, position: "relative" }}
           >
             <IcUsers style={{ width: 14, height: 14 }} /> Tickets Released &amp; Attendees
-            {masterBookings.filter(b => b.status === "Confirmed" && isEventCreator(events.find(ev => ev.id === b.eventId), user)).length > 0 && (
+            {relevantBookings.filter(b => b.status === "Confirmed").length > 0 && (
               <span
                 style={{
                   background: "#34d399",
@@ -1105,9 +1238,17 @@ export default function OrganizerDashboard() {
                   marginLeft: 6
                 }}
               >
-                {masterBookings.filter(b => b.status === "Confirmed" && isEventCreator(events.find(ev => ev.id === b.eventId), user)).length}
+                {relevantBookings.filter(b => b.status === "Confirmed").length}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("budget")}
+            className={`btn ${activeTab === "budget" ? "btn-primary" : "btn-ghost"}`}
+            style={{ fontSize: 13, fontWeight: 700, position: "relative" }}
+          >
+            💰 Budget &amp; Analytics Report
           </button>
         </div>
 
@@ -1489,6 +1630,226 @@ export default function OrganizerDashboard() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* TAB 4: BUDGET & ACTUAL ANALYTICS REPORT */}
+        {activeTab === "budget" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#ffffff" }}>📊 Budget vs. Actual Analytics Report</div>
+                <div style={{ fontSize: 13, color: "var(--c-text-3)", marginTop: 2 }}>
+                  Comprehensive financial tracking, expense log, and threshold approvals (Section 5 — IT24103303).
+                </div>
+              </div>
+              
+              {/* Target Event Selector */}
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#93c5fd" }}>Select Event:</label>
+                <select
+                  className="form-input"
+                  style={{ width: 260, fontSize: 12, fontWeight: 700, background: "#0b0f19" }}
+                  value={selectedBudgetEventId || events[0]?.id || ""}
+                  onChange={e => setSelectedBudgetEventId(e.target.value)}
+                >
+                  {events.map(e => (
+                    <option key={e.id} value={e.id}>{e.title}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* KPI Cards */}
+            {(() => {
+              const currentEvent = events.find(e => e.id === (selectedBudgetEventId || events[0]?.id)) || events[0];
+              const approvedExpensesSum = expenses.filter(e => e.status === "Approved").reduce((a, b) => a + Number(b.amount), 0);
+              const pendingExpensesSum = expenses.filter(e => e.status === "Pending").reduce((a, b) => a + Number(b.amount), 0);
+              const totalSpent = approvedExpensesSum + pendingExpensesSum;
+              const remainingBudget = targetBudgetAmount - totalSpent;
+              
+              // Revenue calculation from confirmed bookings
+              const confirmedBookingsForEvent = relevantBookings.filter(b => b.status === "Confirmed" && (b.eventId === currentEvent?.id || b.eventTitle === currentEvent?.title));
+              const totalRevenue = confirmedBookingsForEvent.reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+
+              return (
+                <div>
+                  {/* KPI Grid */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
+                    <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: "1px solid var(--c-border)" }}>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Total Budget Allocated</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: "#ffffff", marginTop: 4 }}>{formatLKR(targetBudgetAmount)}</div>
+                      <div style={{ fontSize: 11, color: "#60a5fa", marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}>
+                        <span>Target Limit</span>
+                      </div>
+                    </div>
+
+                    <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: "1px solid #059669" }}>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Actual Approved Spent</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: "#34d399", marginTop: 4 }}>{formatLKR(approvedExpensesSum)}</div>
+                      <div style={{ fontSize: 11, color: "#a7f3d0", marginTop: 6 }}>{expenses.filter(e => e.status === "Approved").length} Expense Items</div>
+                    </div>
+
+                    <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: "1px solid #f59e0b" }}>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Pending Approval (&gt; 100k)</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: "#fbbf24", marginTop: 4 }}>{formatLKR(pendingExpensesSum)}</div>
+                      <div style={{ fontSize: 11, color: "#fef3c7", marginTop: 6 }}>{expenses.filter(e => e.status === "Pending").length} Flagged Threshold Items</div>
+                    </div>
+
+                    <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: `1px solid ${remainingBudget < 0 ? '#ef4444' : 'var(--c-blue)'}` }}>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Remaining Variance</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: remainingBudget < 0 ? "#ef4444" : "#93c5fd", marginTop: 4 }}>{formatLKR(remainingBudget)}</div>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 6 }}>{((totalSpent / targetBudgetAmount) * 100).toFixed(1)}% Budget Utilized</div>
+                    </div>
+
+                    <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: "1px solid #10b981" }}>
+                      <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Ticket Sales Revenue</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: "#10b981", marginTop: 4 }}>{formatLKR(totalRevenue)}</div>
+                      <div style={{ fontSize: 11, color: "#6ee7b7", marginTop: 6 }}>{confirmedBookingsForEvent.length} Confirmed Pass Bookings</div>
+                    </div>
+                  </div>
+
+                  {/* Auto-Flagged Threshold Approvals Section */}
+                  {expenses.some(e => e.status === "Pending") && (
+                    <div style={{ marginBottom: 24, padding: 16, background: "rgba(245,158,11,0.08)", border: "1.5px solid #f59e0b", borderRadius: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                        <IcAlert style={{ width: 18, height: 18, color: "#f59e0b" }} />
+                        <div style={{ fontSize: 14, fontWeight: 800, color: "#fbbf24" }}>
+                          Auto-Flagged Threshold Expenses (Exceeds LKR 100,000 / $1,000 Rule)
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {expenses.filter(e => e.status === "Pending").map(exp => (
+                          <div key={exp.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0b0f19", padding: "10px 14px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)" }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffff" }}>{exp.category} — {formatLKR(exp.amount)}</div>
+                              <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 2 }}>{exp.notes}</div>
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button
+                                type="button"
+                                className="btn btn-success btn-sm"
+                                style={{ fontSize: 11, background: "#059669", color: "#ffffff", fontWeight: 700 }}
+                                onClick={() => setExpenses(prev => prev.map(item => item.id === exp.id ? { ...item, status: "Approved" } : item))}
+                              >
+                                Approve Expense
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-danger btn-sm"
+                                style={{ fontSize: 11, background: "#dc2626", color: "#ffffff", fontWeight: 700 }}
+                                onClick={() => setExpenses(prev => prev.filter(item => item.id !== exp.id))}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Expenses Breakdown & Add Expense Form */}
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+                    {/* Expense Breakdown Table */}
+                    <div className="card" style={{ padding: 20, background: "var(--c-bg-1)" }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "#ffffff" }}>Expense Breakdown List</div>
+                      <div className="table-wrap">
+                        <table className="table">
+                          <thead>
+                            <tr>
+                              <th>Category</th>
+                              <th>Notes &amp; Details</th>
+                              <th>Amount</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {expenses.map(exp => (
+                              <tr key={exp.id}>
+                                <td><span className="badge badge-blue">{exp.category}</span></td>
+                                <td style={{ fontSize: 12, color: "var(--c-text-2)" }}>{exp.notes || "N/A"}</td>
+                                <td style={{ fontWeight: 700, color: "#ffffff" }}>{formatLKR(exp.amount)}</td>
+                                <td>
+                                  <span className={`badge ${exp.status === "Approved" ? "badge-green" : "badge-amber"}`}>
+                                    {exp.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Add New Expense Form */}
+                    <div className="card" style={{ padding: 20, background: "var(--c-bg-1)" }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "#ffffff" }}>Log New Event Expense</div>
+                      <form onSubmit={e => {
+                        e.preventDefault();
+                        const amt = Number(newExpForm.amount);
+                        const isOverThreshold = amt > 100000;
+                        const item = {
+                          id: `exp-${Date.now()}`,
+                          category: newExpForm.category,
+                          amount: amt,
+                          notes: newExpForm.notes,
+                          status: isOverThreshold ? "Pending" : "Approved",
+                          createdAt: new Date().toISOString()
+                        };
+                        setExpenses(prev => [item, ...prev]);
+                        setNewExpForm({ category: "Venue Booking", amount: 75000, notes: "" });
+                        setSuccess(isOverThreshold
+                          ? `Expense of ${formatLKR(amt)} logged. Amount > LKR 100,000 threshold — auto-flagged for approval!`
+                          : `Expense of ${formatLKR(amt)} logged and approved.`);
+                      }}>
+                        <div className="form-group">
+                          <label className="form-label">Expense Category</label>
+                          <select
+                            className="form-input"
+                            value={newExpForm.category}
+                            onChange={e => setNewExpForm(prev => ({ ...prev, category: e.target.value }))}
+                          >
+                            <option>Venue Booking</option>
+                            <option>Stage &amp; AV Light</option>
+                            <option>Catering</option>
+                            <option>Marketing &amp; Promotion</option>
+                            <option>Logistics &amp; Security</option>
+                            <option>Staff &amp; Operations</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Amount (LKR) *</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="1"
+                            required
+                            value={newExpForm.amount}
+                            onChange={e => setNewExpForm(prev => ({ ...prev, amount: e.target.value }))}
+                          />
+                          <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 4 }}>
+                            Amounts &gt; LKR 100,000 ($1,000) are automatically flagged for approval.
+                          </div>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Notes &amp; Vendor Reference</label>
+                          <input
+                            className="form-input"
+                            placeholder="e.g. Stage supplier advance"
+                            value={newExpForm.notes}
+                            onChange={e => setNewExpForm(prev => ({ ...prev, notes: e.target.value }))}
+                          />
+                        </div>
+                        <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: 6 }}>
+                          + Log Expense Item
+                        </button>
+                      </form>
+                    </div>
+                  </div>
                 </div>
               );
             })()}
