@@ -211,6 +211,7 @@ export const OrganizerDashboardView: React.FC<OrganizerDashboardViewProps> = ({
   };
 
   // Handle Approve Payment in Supabase
+  
   const handleApprovePayment = async (item: PendingPaymentItem) => {
     setActionLoadingId(item.id);
     try {
