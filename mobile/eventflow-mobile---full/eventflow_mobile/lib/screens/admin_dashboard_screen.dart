@@ -172,6 +172,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               'Assign permissions across all 4 system roles (Attendee, Organizer, Admin, Venue & Vendor):',
               style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
             ),
+            
             const SizedBox(height: 12),
 
             FutureBuilder<List<AppUser>>(
