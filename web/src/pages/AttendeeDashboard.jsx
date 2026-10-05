@@ -13,7 +13,6 @@ import { useRealtime } from "../context/RealtimeContext.jsx";
 import QRCodeVisual from "../components/QRCodeVisual.jsx";
 import BookingChatDrawer from "../components/BookingChatDrawer.jsx";
 
-
 export default function AttendeeDashboard() {
   const { user } = useAuth();
   const { events } = useRealtime();

@@ -9,6 +9,9 @@ class UserTicketModel {
   final String tierName;
   final double price;
 
+
+
+
   UserTicketModel({
     required this.registrationId,
     required this.status,
