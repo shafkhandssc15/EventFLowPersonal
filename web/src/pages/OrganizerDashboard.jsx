@@ -201,8 +201,32 @@ export default function OrganizerDashboard() {
     const pendingExpensesSum = currentExpenses.filter(e => e.status === "Pending").reduce((a, b) => a + Number(b.amount), 0);
     const totalExpenses = approvedExpensesSum + pendingExpensesSum;
 
-    const confirmedBookingsForEvent = relevantBookings.filter(b => b.status === "Confirmed" && (b.eventId === currentEvent.id || b.eventTitle === currentEvent.title));
-    const totalRevenue = confirmedBookingsForEvent.reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+    const bookingsForCurrentEvent = masterBookings.filter(b => {
+      const matchId = b.eventId && currentEvent.id && String(b.eventId).trim() === String(currentEvent.id).trim();
+      const matchTitle = b.eventTitle && currentEvent.title && String(b.eventTitle).toLowerCase().trim() === String(currentEvent.title).toLowerCase().trim();
+      return matchId || matchTitle;
+    });
+
+    const confirmedBookingsForEvent = bookingsForCurrentEvent.filter(b => {
+      const st = (b.status || b.paymentStatus || "").toLowerCase();
+      return st === "confirmed" || st === "approved";
+    });
+
+    const ticketTiersToDisplay = (currentEvent?.ticketTypes && currentEvent.ticketTypes.length > 0)
+      ? currentEvent.ticketTypes
+      : [{ id: "std-tier", name: "Standard Pass", price: Number(currentEvent?.price || 7500), quantity: Number(currentEvent?.capacity || 1000) }];
+
+    const totalRevenue = confirmedBookingsForEvent.reduce((sum, b) => {
+      let amt = Number(b.totalAmount || 0);
+      if (!amt || isNaN(amt)) {
+        const pCount = Number(b.passCount || (b.passes ? b.passes.length : 1));
+        const tierMatch = ticketTiersToDisplay.find(t => (t.name || "").toLowerCase() === (b.tierName || "").toLowerCase());
+        const pPrice = tierMatch ? Number(tierMatch.price) : Number(currentEvent?.price || 0);
+        amt = pCount * pPrice;
+      }
+      return sum + amt;
+    }, 0);
+
     const netProfit = totalRevenue - approvedExpensesSum;
 
     let csv = `EVENT FINANCIAL & BUDGET ANALYTICS REPORT\n`;
@@ -222,14 +246,16 @@ export default function OrganizerDashboard() {
 
     csv += `TICKET TIER SALES BREAKDOWN\n`;
     csv += `Tier Name,Price (LKR),Seats Allocated,Passes Sold,Total Revenue (LKR)\n`;
-    (currentEvent.ticketTypes || []).forEach(t => {
+    ticketTiersToDisplay.forEach((t, idx) => {
+      const tNameLower = (t.name || "").toLowerCase().trim();
       const sold = confirmedBookingsForEvent.reduce((count, b) => {
-        if (b.tierName && b.tierName.toLowerCase() === t.name.toLowerCase()) {
-          return count + Number(b.passCount || 1);
+        const bTier = (b.tierName || "").toLowerCase().trim();
+        if (bTier === tNameLower || (!bTier && (ticketTiersToDisplay.length === 1 || idx === 0))) {
+          return count + Number(b.passCount || (b.passes ? b.passes.length : 1));
         }
         return count;
       }, 0);
-      csv += `"${t.name}",${t.price},${t.quantity},${sold},${t.price * sold}\n`;
+      csv += `"${t.name}",${t.price},${t.quantity || 100},${sold},${Number(t.price) * sold}\n`;
     });
     csv += `\n`;
 
@@ -373,18 +399,85 @@ export default function OrganizerDashboard() {
     }
   }, [realtimeVenues]);
 
-  // Refresh booking records from Supabase.
+  // Refresh booking records from Supabase & LocalStorage with Realtime sync.
   async function refreshBookings() {
-    const { data, error } = await supabase.from("ApprovalRequests").select("*").order("CreatedAt", { ascending: false });
-    if (error) return;
-    const rows = (data || []).map(r => {
-      try {
-        const parsed = JSON.parse(r.Reason || "{}");
-        return { ...parsed, dbId: r.Id, status: r.Status === "Approved" ? "Confirmed" : (r.Status === "Rejected" ? "Rejected" : "PendingApproval") };
-      } catch { return null; }
-    }).filter(Boolean);
-    setMasterBookings(rows);
+    let localBookings = [];
+    try {
+      localBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
+    } catch {}
+
+    let dbBookings = [];
+    try {
+      const { data: dbReqs } = await supabase
+        .from("ApprovalRequests")
+        .select("*")
+        .order("CreatedAt", { ascending: false });
+
+      if (dbReqs && dbReqs.length > 0) {
+        dbBookings = dbReqs.map(r => {
+          try {
+            const parsed = JSON.parse(r.Reason || "{}");
+            const status = r.Status === "Approved" ? "Confirmed" : (r.Status === "Rejected" ? "Rejected" : "PendingApproval");
+            return {
+              ...parsed,
+              dbId: r.Id,
+              status,
+              rejectionReason: r.Status === "Rejected" ? (parsed.rejectionReason || "Slip rejected by organizer") : null
+            };
+          } catch { return null; }
+        }).filter(Boolean);
+      }
+    } catch (err) {
+      console.warn("Supabase refreshBookings error:", err);
+    }
+
+    // Merge DB & local bookings by bookingRef or dbId
+    const bookingMap = new Map();
+    localBookings.forEach(b => {
+      if (b.bookingRef) bookingMap.set(b.bookingRef, b);
+    });
+    dbBookings.forEach(b => {
+      if (b.bookingRef) {
+        bookingMap.set(b.bookingRef, { ...(bookingMap.get(b.bookingRef) || {}), ...b });
+      } else if (b.dbId) {
+        bookingMap.set(b.dbId, b);
+      }
+    });
+
+    const merged = Array.from(bookingMap.values());
+    setMasterBookings(merged);
   }
+
+  useEffect(() => {
+    loadAll();
+    refreshBookings();
+
+    // Supabase Realtime channel subscription for instant live booking updates
+    const channel = supabase
+      .channel("organizer-dashboard-realtime-bookings")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ApprovalRequests" }, () => {
+        refreshBookings();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "Registrations" }, () => {
+        refreshBookings();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "Tickets" }, () => {
+        refreshBookings();
+      })
+      .subscribe();
+
+    const handleStorageChange = (e) => {
+      if (!e.key || e.key === "ef_master_bookings" || e.key === "ef_event_expenses_map") {
+        refreshBookings();
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
 
   // Direct payment approval by organizer
   // Direct payment approval by organizer
@@ -1777,11 +1870,65 @@ export default function OrganizerDashboard() {
               const approvedExpensesSum = currentExpenses.filter(e => e.status === "Approved").reduce((a, b) => a + Number(b.amount), 0);
               const pendingExpensesSum = currentExpenses.filter(e => e.status === "Pending").reduce((a, b) => a + Number(b.amount), 0);
               const totalExpenses = approvedExpensesSum + pendingExpensesSum;
-              const remainingBudget = targetBudgetAmount - totalExpenses;
 
-              // Actual ticket revenue calculation from confirmed bookings for this event
-              const confirmedBookingsForEvent = relevantBookings.filter(b => b.status === "Confirmed" && (b.eventId === currentEvent?.id || (b.eventTitle && currentEvent?.title && b.eventTitle.toLowerCase().trim() === currentEvent.title.toLowerCase().trim())));
-              const totalRevenue = confirmedBookingsForEvent.reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+              // Filter all bookings matching this event (by ID or Title)
+              const bookingsForCurrentEvent = masterBookings.filter(b => {
+                if (!currentEvent) return false;
+                const matchId = b.eventId && currentEvent.id && String(b.eventId).trim() === String(currentEvent.id).trim();
+                const matchTitle = b.eventTitle && currentEvent.title && String(b.eventTitle).toLowerCase().trim() === String(currentEvent.title).toLowerCase().trim();
+                return matchId || matchTitle;
+              });
+
+              // Confirmed passes
+              const confirmedBookingsForEvent = bookingsForCurrentEvent.filter(b => {
+                const st = (b.status || b.paymentStatus || "").toLowerCase();
+                return st === "confirmed" || st === "approved";
+              });
+
+              // Pending slip verifications awaiting organizer review
+              const pendingBookingsForEvent = bookingsForCurrentEvent.filter(b => {
+                const st = (b.status || b.paymentStatus || "").toLowerCase();
+                return st.includes("pending");
+              });
+
+              const ticketTiersToDisplay = (currentEvent?.ticketTypes && currentEvent.ticketTypes.length > 0)
+                ? currentEvent.ticketTypes
+                : [
+                    {
+                      id: "std-pass-tier",
+                      name: "Standard Delegate Pass",
+                      price: Number(currentEvent?.price || 7500),
+                      quantity: Number(currentEvent?.capacity || 1000)
+                    }
+                  ];
+
+              const totalConfirmedPassesSold = confirmedBookingsForEvent.reduce((sum, b) => {
+                return sum + Number(b.passCount || (b.passes ? b.passes.length : 1));
+              }, 0);
+
+              const confirmedRevenue = confirmedBookingsForEvent.reduce((sum, b) => {
+                let amt = Number(b.totalAmount || 0);
+                if (!amt || isNaN(amt)) {
+                  const pCount = Number(b.passCount || (b.passes ? b.passes.length : 1));
+                  const tierMatch = ticketTiersToDisplay.find(t => (t.name || "").toLowerCase() === (b.tierName || "").toLowerCase());
+                  const pPrice = tierMatch ? Number(tierMatch.price) : Number(currentEvent?.price || 0);
+                  amt = pCount * pPrice;
+                }
+                return sum + amt;
+              }, 0);
+
+              const pendingRevenue = pendingBookingsForEvent.reduce((sum, b) => {
+                let amt = Number(b.totalAmount || 0);
+                if (!amt || isNaN(amt)) {
+                  const pCount = Number(b.passCount || (b.passes ? b.passes.length : 1));
+                  const tierMatch = ticketTiersToDisplay.find(t => (t.name || "").toLowerCase() === (b.tierName || "").toLowerCase());
+                  const pPrice = tierMatch ? Number(tierMatch.price) : Number(currentEvent?.price || 0);
+                  amt = pCount * pPrice;
+                }
+                return sum + amt;
+              }, 0);
+
+              const totalRevenue = confirmedRevenue;
               const netProfit = totalRevenue - approvedExpensesSum;
 
               return (
@@ -1850,7 +1997,7 @@ export default function OrganizerDashboard() {
                         </div>
                         <div>
                           <div style={{ fontSize: 10, color: "var(--c-text-3)", textTransform: "uppercase" }}>Passes Sold</div>
-                          <div style={{ fontWeight: 800, color: "#34d399" }}>{confirmedBookingsForEvent.length} Bookings</div>
+                          <div style={{ fontWeight: 800, color: "#34d399" }}>{totalConfirmedPassesSold} Passes ({confirmedBookingsForEvent.length} Bookings)</div>
                         </div>
                       </div>
                     </div>
@@ -1879,7 +2026,10 @@ export default function OrganizerDashboard() {
                     <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: "1px solid #10b981" }}>
                       <div style={{ fontSize: 11, color: "var(--c-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Actual Ticket Sales Revenue</div>
                       <div style={{ fontSize: 20, fontWeight: 800, color: "#10b981", marginTop: 4 }}>{formatLKR(totalRevenue)}</div>
-                      <div style={{ fontSize: 11, color: "#6ee7b7", marginTop: 6 }}>{confirmedBookingsForEvent.length} Confirmed Pass Bookings</div>
+                      <div style={{ fontSize: 11, color: "#6ee7b7", marginTop: 6 }}>
+                        {totalConfirmedPassesSold} Passes ({confirmedBookingsForEvent.length} Confirmed)
+                        {pendingRevenue > 0 && <span style={{ color: "#fbbf24", marginLeft: 4 }}> · {formatLKR(pendingRevenue)} Pending Slip Review</span>}
+                      </div>
                     </div>
 
                     <div className="card" style={{ padding: 16, background: "var(--c-bg-1)", border: `1px solid ${netProfit >= 0 ? '#10b981' : '#ef4444'}` }}>
@@ -1951,14 +2101,16 @@ export default function OrganizerDashboard() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(currentEvent?.ticketTypes || []).map((tier, idx) => {
+                            {ticketTiersToDisplay.map((tier, idx) => {
+                              const tierNameLower = (tier.name || "").toLowerCase().trim();
                               const passesSold = confirmedBookingsForEvent.reduce((sum, b) => {
-                                if (b.tierName && b.tierName.toLowerCase() === tier.name.toLowerCase()) {
-                                  return sum + Number(b.passCount || 1);
+                                const bTier = (b.tierName || "").toLowerCase().trim();
+                                if (bTier === tierNameLower || (!bTier && (ticketTiersToDisplay.length === 1 || idx === 0))) {
+                                  return sum + Number(b.passCount || (b.passes ? b.passes.length : 1));
                                 }
                                 return sum;
                               }, 0);
-                              const tierRev = Number(tier.price) * passesSold;
+                              const tierRev = Number(tier.price || 0) * passesSold;
 
                               return (
                                 <tr key={tier.id || idx}>
