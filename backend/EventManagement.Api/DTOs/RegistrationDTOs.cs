@@ -12,6 +12,7 @@ public record CheckInRequest(
     string QrCode
 );
 
+
 public record RegistrationResponse(
     Guid Id,
     Guid EventId,
@@ -20,6 +21,7 @@ public record RegistrationResponse(
     string Status,
     DateTimeOffset CreatedAt
 );
+
 
 public record CheckInResponse(
     Guid CheckInId,
