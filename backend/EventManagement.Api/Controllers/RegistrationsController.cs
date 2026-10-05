@@ -44,7 +44,7 @@ public class RegistrationsController : ControllerBase
         ticketType.Sold += 1;
         if (ticketType.Sold >= ticketType.Quantity)
         {
-            // auto-close handled implicitly: subsequent registers will hit the Conflict branch above
+            // auto-close handled implicitly
         }
 
         _db.Notifications.Add(new Notification
