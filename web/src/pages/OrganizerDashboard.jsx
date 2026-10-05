@@ -1488,8 +1488,8 @@ export default function OrganizerDashboard() {
               <div style={{ display: "flex", gap: 6 }}>
                 {["All", "PendingApproval", "Confirmed", "Rejected"].map(filterKey => {
                   const count = filterKey === "All"
-                    ? masterBookings.length
-                    : masterBookings.filter(b => b.status === filterKey).length;
+                    ? relevantBookings.length
+                    : relevantBookings.filter(b => b.status === filterKey).length;
                   return (
                     <button
                       key={filterKey}
@@ -1507,16 +1507,6 @@ export default function OrganizerDashboard() {
 
             {/* Verification Table */}
             {(() => {
-              // Organizers only see and act on payment slips for their own events (Admins see all)
-              const relevantBookings = user?.role === "Admin"
-                ? masterBookings
-                : masterBookings.filter(b => {
-                    const matchedEvent = events.find(ev => ev.id === b.eventId || ev.title === b.eventTitle);
-                    return matchedEvent
-                      ? isEventCreator(matchedEvent, user)
-                      : (b.organizerId === user?.id || (b.organizerEmail && user?.email && b.organizerEmail.toLowerCase() === user.email.toLowerCase()));
-                  });
-
               const filtered = relevantBookings.filter(b => slipFilter === "All" || b.status === slipFilter);
 
               if (filtered.length === 0) {
