@@ -31,6 +31,41 @@ export default function VendorDashboard() {
   const [selectedVenue, setSelectedVenue] = useState(null);
   const [venueDetailModal, setVenueDetailModal] = useState(null);
   const [editingVenueId, setEditingVenueId] = useState(null);
+  const [editingVendorId, setEditingVendorId] = useState(null);
+  const [vendorCategoryFilter, setVendorCategoryFilter] = useState("All");
+
+  function handleEditVendor(vnd) {
+    if (!canCreateVenue && vnd.ownerId !== user?.id && user?.role !== "Admin") {
+      setError("Permission denied: You can only edit vendor services that you manage.");
+      return;
+    }
+    setRf({
+      name: vnd.name,
+      serviceType: vnd.serviceType || "Audio/Visual",
+      pricePerService: vnd.pricePerService || 150000,
+      contactName: vnd.contactName || user?.name || "",
+      contactPhone: vnd.contactPhone || "+94 77 123 4567",
+      image: vnd.image || vnd.imageUrl || FALLBACK_IMAGE,
+      description: vnd.description || ""
+    });
+    setEditingVendorId(vnd.id);
+    setTab("vendors");
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function handleDeleteVendor(id) {
+    const target = vendors.find(v => v.id === id);
+    if (!window.confirm(`Are you sure you want to delete vendor service "${target?.name || 'this vendor'}"?`)) return;
+
+    try {
+      await supabase.from("Vendors").delete().eq("Id", id);
+      setVendors(prev => prev.filter(v => v.id !== id));
+      setSuccess(`Vendor service "${target?.name}" removed from platform.`);
+    } catch (err) {
+      setError("Failed to delete vendor: " + err.message);
+    }
+  }
 
 
   // Availability calendar & Booking inquiry state
@@ -472,9 +507,12 @@ export default function VendorDashboard() {
     if (!rf.name.trim()) { setError("Vendor / Service Name is required."); return; }
 
     try {
+      const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const vendorId = (editingVendorId && isUUID(editingVendorId)) ? editingVendorId : crypto.randomUUID();
+
       const newVnd = {
-        id: crypto.randomUUID(),
-        ownerId: user?.id,
+        id: vendorId,
+        ownerId: user?.id || "00000000-0000-0000-0000-0000000000bb",
         name: rf.name.trim(),
         serviceType: rf.serviceType,
         pricePerService: Number(rf.pricePerService),
@@ -487,8 +525,8 @@ export default function VendorDashboard() {
         isActive: true
       };
 
-      const { error: vendorError } = await supabase.from("Vendors").insert({
-        Id: newVnd.id,
+      const { error: vendorError } = await supabase.from("Vendors").upsert({
+        Id: vendorId,
         OwnerId: newVnd.ownerId,
         Name: newVnd.name,
         ServiceType: newVnd.serviceType,
@@ -497,9 +535,16 @@ export default function VendorDashboard() {
       });
       if (vendorError) throw vendorError;
 
-      setVendors(prev => [newVnd, ...prev]);
-      setSuccess(`Vendor "${rf.name}" listed successfully in Sri Lanka directory.`);
+      if (editingVendorId) {
+        setVendors(prev => prev.map(v => v.id === editingVendorId ? { ...v, ...newVnd } : v));
+        setSuccess(`Vendor service "${rf.name}" updated successfully.`);
+      } else {
+        setVendors(prev => [newVnd, ...prev]);
+        setSuccess(`Vendor service "${rf.name}" listed successfully in Sri Lanka directory.`);
+      }
+
       setShowForm(false);
+      setEditingVendorId(null);
       setRf({
         name: "",
         serviceType: "Audio/Visual",
@@ -1026,44 +1071,138 @@ export default function VendorDashboard() {
           </div>
         )}
 
-        {/* Tab 3: Vendor Partners Grid */}
+        {/* Tab 3: Vendor Partners Grid & Service Management */}
         {tab === "vendors" && (
-          <div className="events-grid">
-            {vendors.map(vnd => (
-              <div key={vnd.id} className="event-card">
-                <div className="event-card-cover" style={{ height: 170 }}>
-                  <img
-                    src={vnd.image || vnd.imageUrl || FALLBACK_IMAGE}
-                    alt={vnd.name}
-                    onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
-                  />
-                  <div className="event-card-cover-gradient" />
-                  <div className="event-card-cover-tag">
-                    <span className="badge badge-purple">{vnd.serviceType}</span>
-                  </div>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#ffffff" }}>
+                  Sri Lanka Event Vendors &amp; Service Providers ({vendors.length})
                 </div>
-                <div className="event-card-body">
-                  <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{vnd.name}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
-                    <IcStar style={{ width: 13, height: 13, fill: "#fbbf24" }} />
-                    <span style={{ fontWeight: 700 }}>{vnd.rating || 5.0}</span>
-                    <span style={{ color: "var(--c-text-3)" }}>({vnd.reviews || 42} reviews)</span>
-                  </div>
-                  {vnd.description && (
-                    <div style={{ fontSize: 12, color: "var(--c-text-3)", lineHeight: 1.5, marginBottom: 14 }}>
-                      {vnd.description}
-                    </div>
-                  )}
-                  <div className="event-card-footer">
-                    <div>
-                      <div style={{ fontSize: 10, color: "var(--c-text-3)", textTransform: "uppercase" }}>Package from</div>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: "#34d399" }}>{formatLKR(vnd.pricePerService)}</div>
-                    </div>
-                    <button className="btn btn-primary btn-sm">Request Proposal</button>
-                  </div>
+                <div style={{ fontSize: 12, color: "var(--c-text-2)" }}>
+                  Verified providers offering Photography, Catering, Stage Lighting, Audio/Visual, Security &amp; Decoration across Sri Lanka.
                 </div>
               </div>
-            ))}
+
+              {canCreateVenue && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => { setEditingVendorId(null); setShowForm(true); setTab("vendors"); }}
+                  style={{ fontSize: 12 }}
+                >
+                  <IcPlus style={{ width: 13, height: 13 }} /> Register Vendor Service
+                </button>
+              )}
+            </div>
+
+            {/* Category Filter Chips */}
+            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12, marginBottom: 16 }}>
+              {["All", "Photography", "Catering", "Audio/Visual", "Lighting", "Decoration", "Security", "Transportation", "Other"].map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setVendorCategoryFilter(cat)}
+                  className={`btn btn-sm ${vendorCategoryFilter === cat ? "btn-primary" : "btn-secondary"}`}
+                  style={{ fontSize: 12, whiteSpace: "nowrap" }}
+                >
+                  {cat} ({cat === "All" ? vendors.length : vendors.filter(v => (v.serviceType || "").toLowerCase().includes(cat.toLowerCase())).length})
+                </button>
+              ))}
+            </div>
+
+            {(() => {
+              const filteredVendors = vendors.filter(v =>
+                vendorCategoryFilter === "All" ||
+                (v.serviceType || "").toLowerCase().includes(vendorCategoryFilter.toLowerCase())
+              );
+
+              if (filteredVendors.length === 0) {
+                return (
+                  <div className="empty">
+                    <div className="empty-title">No vendor services found for "{vendorCategoryFilter}"</div>
+                    <div className="empty-desc">Click "Register Vendor Service" above to add new vendor listings in this category.</div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="events-grid">
+                  {filteredVendors.map(vnd => {
+                    const isOwner = user?.role === "Admin" || (vnd.ownerId && vnd.ownerId === user?.id);
+
+                    return (
+                      <div key={vnd.id} className="event-card">
+                        <div className="event-card-cover" style={{ height: 170 }}>
+                          <img
+                            src={vnd.image || vnd.imageUrl || FALLBACK_IMAGE}
+                            alt={vnd.name}
+                            onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                          />
+                          <div className="event-card-cover-gradient" />
+                          <div className="event-card-cover-tag">
+                            <span className="badge badge-purple">{vnd.serviceType}</span>
+                          </div>
+                        </div>
+                        <div className="event-card-body">
+                          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{vnd.name}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#fbbf24", marginBottom: 6 }}>
+                            <IcStar style={{ width: 13, height: 13, fill: "#fbbf24" }} />
+                            <span style={{ fontWeight: 700 }}>{vnd.rating || 5.0}</span>
+                            <span style={{ color: "var(--c-text-3)" }}>({vnd.reviews || 42} reviews)</span>
+                          </div>
+                          {vnd.contactPhone && (
+                            <div style={{ fontSize: 11, color: "#93c5fd", fontFamily: "monospace", marginBottom: 8 }}>
+                              📞 {vnd.contactPhone}
+                            </div>
+                          )}
+                          {vnd.description && (
+                            <div style={{ fontSize: 12, color: "var(--c-text-3)", lineHeight: 1.5, marginBottom: 14 }}>
+                              {vnd.description}
+                            </div>
+                          )}
+                          <div className="event-card-footer" style={{ flexDirection: "column", gap: 10, alignItems: "stretch" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div>
+                                <div style={{ fontSize: 10, color: "var(--c-text-3)", textTransform: "uppercase" }}>Package from</div>
+                                <div style={{ fontSize: 16, fontWeight: 800, color: "#34d399" }}>{formatLKR(vnd.pricePerService)}</div>
+                              </div>
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => alert(`Proposal request sent to ${vnd.name}! Contact: ${vnd.contactPhone || 'vendor.eventflow@gmail.com'}`)}
+                              >
+                                Request Proposal
+                              </button>
+                            </div>
+
+                            {/* Edit / Delete Actions for Vendor Manager */}
+                            {isOwner && (
+                              <div style={{ display: "flex", gap: 6, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 8 }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ flex: 1, fontSize: 11 }}
+                                  onClick={() => handleEditVendor(vnd)}
+                                >
+                                  Edit Service
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  style={{ color: "#f87171", fontSize: 11 }}
+                                  onClick={() => handleDeleteVendor(vnd.id)}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
