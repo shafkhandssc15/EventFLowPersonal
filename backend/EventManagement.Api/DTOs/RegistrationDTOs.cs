@@ -1,6 +1,6 @@
 namespace EventManagement.Api.DTOs;
 
-// ---- Student 3: Attendee Registration & Check-in ----
+//  Attendee Registration & Check-in ----
 
 public record CreateRegistrationRequest(
     Guid EventId,
@@ -11,6 +11,7 @@ public record CreateRegistrationRequest(
 public record CheckInRequest(
     string QrCode
 );
+
 
 public record RegistrationResponse(
     Guid Id,
@@ -27,3 +28,5 @@ public record CheckInResponse(
     DateTimeOffset CheckedInAt,
     string Method
 );
+
+
