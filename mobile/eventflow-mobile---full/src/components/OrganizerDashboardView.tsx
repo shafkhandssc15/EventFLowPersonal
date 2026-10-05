@@ -17,6 +17,7 @@ interface PendingPaymentItem {
   createdAt: string;
 }
 
+
 interface EventProgressItem {
   id: string;
   title: string;
@@ -139,6 +140,7 @@ export const OrganizerDashboardView: React.FC<OrganizerDashboardViewProps> = ({
       setPendingPayments(pendingList);
 
       // Build Events Progress List from Supabase
+      
       const progressList: EventProgressItem[] = events
         .filter((e) => e.Status === 'Published')
         .slice(0, 5)
@@ -184,6 +186,7 @@ export const OrganizerDashboardView: React.FC<OrganizerDashboardViewProps> = ({
     loadSupabaseData();
 
     // Subscribe to live Postgres changes in Supabase for all relevant tables
+    
     const channel = supabase
       .channel('organizer-live-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'Registrations' }, () => {
@@ -208,6 +211,7 @@ export const OrganizerDashboardView: React.FC<OrganizerDashboardViewProps> = ({
   };
 
   // Handle Approve Payment in Supabase
+  
   const handleApprovePayment = async (item: PendingPaymentItem) => {
     setActionLoadingId(item.id);
     try {
@@ -242,6 +246,7 @@ export const OrganizerDashboardView: React.FC<OrganizerDashboardViewProps> = ({
   };
 
   // Handle Reject Payment in Supabase
+  
   const handleRejectPayment = async (item: PendingPaymentItem) => {
     setActionLoadingId(item.id);
     try {
