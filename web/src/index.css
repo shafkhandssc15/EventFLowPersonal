@@ -1412,6 +1412,73 @@ select.form-input option { background: var(--c-bg-2); }
 [data-theme="light"] .empty-title { color: #0f172a !important; }
 [data-theme="light"] .empty-desc { color: #475569 !important; }
 
+/* ── Auth Page Light Theme Fixes ── */
+[data-theme="light"] .auth-root {
+  background: #f8fafc !important;
+}
+
+[data-theme="light"] .auth-left {
+  background: #ffffff !important;
+  border-right: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .auth-right {
+  background: #f1f5f9 !important;
+}
+
+[data-theme="light"] .auth-heading {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .auth-sub {
+  color: #334155 !important;
+}
+
+[data-theme="light"] .auth-logo-name {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .auth-divider {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .auth-switch {
+  color: #334155 !important;
+}
+
+[data-theme="light"] .auth-role-pill {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .auth-role-pill:hover {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+[data-theme="light"] .holo-foil-border {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.08) !important;
+}
+
+/* Auth 3D showcase cards inside light theme */
+[data-theme="light"] .auth-right div[style*="background: rgba(0,0,0"],
+[data-theme="light"] .auth-right div[style*="background:rgba(0,0,0"] {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .auth-right div[style*="background: rgba(15, 23, 42"],
+[data-theme="light"] .auth-right div[style*="background:rgba(15, 23, 42"] {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important;
+}
+
 /* Hero section light theme overrides */
 [data-theme="light"] .hero-title-grad {
   background: linear-gradient(135deg, #0f172a 30%, #2563eb 100%) !important;
