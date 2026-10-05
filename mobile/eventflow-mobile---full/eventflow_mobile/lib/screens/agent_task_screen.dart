@@ -129,6 +129,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
                 ],
               ),
             ),
+            
             const SizedBox(height: 16),
 
             // Quick Operational Presets
