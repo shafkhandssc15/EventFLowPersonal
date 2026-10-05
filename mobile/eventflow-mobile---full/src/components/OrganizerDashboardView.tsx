@@ -4,7 +4,6 @@ import { User } from '../lib/types';
 import { RefreshCw, CheckCircle2, XCircle, ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-
 interface PendingPaymentItem {
   id: string; // registration id
   paymentId?: string;
