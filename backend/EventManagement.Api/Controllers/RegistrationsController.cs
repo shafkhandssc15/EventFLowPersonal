@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventManagement.Api.Controllers;
 
+
+
 // Student 3 — Attendee Registration & Check-in
 [ApiController]
 [Route("api/registrations")]
