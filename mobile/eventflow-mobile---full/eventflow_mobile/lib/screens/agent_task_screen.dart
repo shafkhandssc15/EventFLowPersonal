@@ -137,7 +137,9 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
               'Operational Presets:',
               style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.bold),
             ),
+            
             const SizedBox(height: 8),
+            
             Wrap(
               spacing: 8,
               runSpacing: 8,
