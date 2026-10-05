@@ -268,7 +268,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                   </div>
 
                   {/* RBAC Role Selector inline */}
-                  
                   <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[10px]">
                     <span className="text-slate-400 font-medium">Reassign Role:</span>
                     <select
