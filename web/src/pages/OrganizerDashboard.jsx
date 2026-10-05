@@ -1898,42 +1898,47 @@ export default function OrganizerDashboard() {
         {rejectTarget && (
           <div
             style={{
-              position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
-              backdropFilter: "blur(10px)", zIndex: 9999,
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
+              backdropFilter: "blur(12px)", zIndex: 9999,
               display: "flex", alignItems: "center", justifyContent: "center", padding: 20
             }}
             onClick={(e) => { if (e.target === e.currentTarget) { setRejectTarget(null); setRejectMsg(""); } }}
           >
-            <div className="card" style={{ maxWidth: 480, width: "100%", padding: 28, background: "var(--c-bg-0)", border: "1.5px solid #ef4444" }}>
+            <div className="card" style={{ maxWidth: 520, width: "100%", padding: 28, background: "var(--c-bg-0)", border: "1.5px solid #ef4444", boxShadow: "0 20px 40px rgba(0,0,0,0.7)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(239,68,68,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <IcX style={{ width: 20, height: 20, color: "#ef4444" }} />
+                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.4)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <IcX style={{ width: 22, height: 22, color: "#ef4444" }} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#ef4444" }}>Reject Payment Slip</div>
-                  <div style={{ fontSize: 12, color: "var(--c-text-3)", marginTop: 2 }}>
-                    {rejectTarget.attendeeName} · {rejectTarget.bookingRef}
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "#ef4444" }}>Reject Payment Slip</div>
+                  <div style={{ fontSize: 12, color: "var(--c-text-2)", marginTop: 2 }}>
+                    {(rejectTarget.attendeeName || rejectTarget.name || "Delegate Attendee")} · Ref: <code style={{ color: "#93c5fd" }}>{(rejectTarget.bookingRef || rejectTarget.id || "TXN-DIRECT-DEP")}</code>
                   </div>
                 </div>
               </div>
 
               {/* Booking summary */}
-              <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 8, marginBottom: 18, fontSize: 12, color: "var(--c-text-2)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span>Event:</span><strong style={{ color: "#fff" }}>{rejectTarget.eventTitle}</strong>
+              <div style={{ padding: "12px 16px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, marginBottom: 18, fontSize: 12, color: "var(--c-text-2)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span>Target Event:</span>
+                  <strong style={{ color: "#ffffff", textAlign: "right" }}>{rejectTarget.eventTitle || rejectTarget.title || rejectTarget.eventName || "Sri Lankan Event"}</strong>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span>Amount:</span><strong style={{ color: "#34d399" }}>{rejectTarget.totalAmount ? `LKR ${Number(rejectTarget.totalAmount).toLocaleString()}` : "—"}</strong>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span>Pass Total Amount:</span>
+                  <strong style={{ color: "#34d399" }}>
+                    {rejectTarget.totalAmount ? formatLKR(rejectTarget.totalAmount) : (rejectTarget.amount ? formatLKR(rejectTarget.amount) : "LKR 7,500")}
+                  </strong>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Bank Ref:</span><code style={{ color: "#93c5fd" }}>{rejectTarget.bankRefNo || "N/A"}</code>
+                  <span>Bank Reference:</span>
+                  <code style={{ color: "#93c5fd", fontWeight: 700 }}>{rejectTarget.bankRefNo || rejectTarget.bankRef || rejectTarget.paymentRef || "TXN-DIRECT-DEP"}</code>
                 </div>
               </div>
 
               <form onSubmit={handleRejectPayment}>
                 <div className="form-group">
-                  <label className="form-label" style={{ color: "#fca5a5" }}>
-                    Rejection Reason (sent to attendee) *
+                  <label className="form-label" style={{ color: "#fca5a5", fontWeight: 700 }}>
+                    Rejection Reason (sent to attendee via Email / SMS) *
                   </label>
                   <textarea
                     className="form-input"
@@ -1942,29 +1947,43 @@ export default function OrganizerDashboard() {
                     value={rejectMsg}
                     onChange={e => setRejectMsg(e.target.value)}
                     required
-                    style={{ resize: "vertical", minHeight: 100 }}
+                    style={{ resize: "vertical", minHeight: 100, background: "#0b0f19", color: "#ffffff", border: "1px solid var(--c-border)", fontSize: 13 }}
                   />
-                  <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 4 }}>
-                    This message will appear on the attendee's booking status and in the chat thread.
+                  <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 6 }}>
+                    This rejection message will appear on the attendee's ticket status, chat thread, and simulated SMS/Email alerts.
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+                <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
                   <button
                     type="button"
                     className="btn btn-secondary"
+                    style={{ color: "#ffffff", background: "rgba(255,255,255,0.08)", border: "1px solid var(--c-border)" }}
                     onClick={() => { setRejectTarget(null); setRejectMsg(""); }}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="btn btn-danger"
+                    className="btn"
                     disabled={!rejectMsg.trim() || payBusy === rejectTarget?.bookingRef}
-                    style={{ background: "#dc2626", borderColor: "#b91c1c" }}
+                    style={{
+                      background: !rejectMsg.trim() ? "rgba(220, 38, 38, 0.4)" : "#dc2626",
+                      border: "1px solid #ef4444",
+                      color: "#ffffff",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      padding: "8px 16px",
+                      borderRadius: 6,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      cursor: !rejectMsg.trim() ? "not-allowed" : "pointer",
+                      opacity: !rejectMsg.trim() ? 0.7 : 1
+                    }}
                   >
-                    <IcX style={{ width: 13, height: 13 }} />
-                    Send Rejection &amp; Notify Attendee
+                    <IcX style={{ width: 14, height: 14, color: "#ffffff" }} />
+                    {payBusy === rejectTarget?.bookingRef ? "Rejecting…" : "Confirm Rejection & Notify"}
                   </button>
                 </div>
               </form>
