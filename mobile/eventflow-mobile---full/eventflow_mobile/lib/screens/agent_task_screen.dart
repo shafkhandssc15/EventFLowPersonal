@@ -84,6 +84,7 @@ class _AgentTaskScreenState extends State<AgentTaskScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: const Color(0x33FFFFFF)),
               ),
+              
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
