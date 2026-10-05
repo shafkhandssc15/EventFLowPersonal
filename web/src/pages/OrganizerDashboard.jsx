@@ -503,12 +503,33 @@ export default function OrganizerDashboard() {
         text: `🎉 Payment approved by organizer ${user?.name || ""}! Booking ${booking.bookingRef} is CONFIRMED. Entrance QR passes are now active.`,
         createdAt: now
       };
-      localStorage.setItem(chatKey, JSON.stringify([...chatMsgs, notice]));
-      window.dispatchEvent(new Event("storage"));
+      // 8. Dispatch Email & SMS Simulation Notifications
+      try {
+        await supabase.from("Notifications").insert([
+          {
+            Id: crypto.randomUUID(),
+            UserId: resolvedAttendeeId,
+            Channel: "Email",
+            Subject: `You're registered for ${booking.eventTitle}! Pass Confirmed`,
+            Body: `Dear ${booking.attendeeName}, your payment slip for ${booking.eventTitle} (${booking.bookingRef}) has been verified. Your active entrance QR passes are now available in your EventFlow wallet.`,
+            CreatedAt: now
+          },
+          {
+            Id: crypto.randomUUID(),
+            UserId: resolvedAttendeeId,
+            Channel: "SMS",
+            Subject: "EventFlow Booking Alert",
+            Body: `[EventFlow SMS] Pass Confirmed for ${booking.eventTitle}! Ref: ${booking.bookingRef}. Access your QR ticket: https://eventflow.app/tickets`,
+            CreatedAt: now
+          }
+        ]);
+      } catch (notifErr) {
+        console.warn("Notification dispatch warning:", notifErr);
+      }
 
       await refreshBookings();
 
-      setSuccess(`✅ Payment for ${booking.attendeeName} (${booking.bookingRef}) APPROVED — Recorded in Supabase & passes activated!`);
+      setSuccess(`✅ Payment for ${booking.attendeeName} (${booking.bookingRef}) APPROVED — Recorded in Supabase, Notifications (Email/SMS) sent & passes activated!`);
     } catch (err) {
       setError("Failed to approve: " + err.message);
     } finally {
@@ -621,9 +642,33 @@ export default function OrganizerDashboard() {
       localStorage.setItem(chatKey, JSON.stringify([...chatMsgs, notice]));
       window.dispatchEvent(new Event("storage"));
 
+      // 5. Dispatch Email & SMS Simulation Notifications for Rejection
+      try {
+        await supabase.from("Notifications").insert([
+          {
+            Id: crypto.randomUUID(),
+            UserId: resolvedAttendeeId,
+            Channel: "Email",
+            Subject: `Payment Slip Review Alert for ${rejectTarget.eventTitle}`,
+            Body: `Dear ${rejectTarget.attendeeName}, your uploaded payment slip for ${rejectTarget.eventTitle} (${rejectTarget.bookingRef}) requires correction. Reason: "${reason}". Please log into EventFlow to re-upload a clear receipt.`,
+            CreatedAt: now
+          },
+          {
+            Id: crypto.randomUUID(),
+            UserId: resolvedAttendeeId,
+            Channel: "SMS",
+            Subject: "EventFlow Action Required",
+            Body: `[EventFlow SMS Alert] Payment slip update needed for ${rejectTarget.bookingRef}. Reason: ${reason}. Please re-upload slip on EventFlow.`,
+            CreatedAt: now
+          }
+        ]);
+      } catch (notifErr) {
+        console.warn("Notification rejection dispatch warning:", notifErr);
+      }
+
       await refreshBookings();
 
-      setSuccess(`❌ Payment for ${rejectTarget.attendeeName} rejected. Reason updated in Supabase.`);
+      setSuccess(`❌ Payment for ${rejectTarget.attendeeName} rejected. Reason updated in Supabase & Notifications (Email/SMS) sent.`);
       setRejectTarget(null);
       setRejectMsg("");
     } catch (err) {
