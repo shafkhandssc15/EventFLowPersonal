@@ -12,6 +12,7 @@ class QrCheckInScreen extends StatefulWidget {
   State<QrCheckInScreen> createState() => _QrCheckInScreenState();
 }
 
+
 class _QrCheckInScreenState extends State<QrCheckInScreen> {
   final _manualCodeController = TextEditingController();
   final MobileScannerController _scannerController = MobileScannerController();
