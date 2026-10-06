@@ -1,0 +1,58 @@
+================================================================================
+         TEST SUITE: STUDENT 4 (IT24103303) - BUDGET & PAYMENTS                 
+================================================================================
+
+[TEST CASE 1] Event Budget Allocation
+  [PASS] Budget Created: ID=bgt-2a4d9330, Total=LKR 1,500,000.00, 80% Threshold=LKR 1,200,000.00
+
+[TEST CASE 2] Expense Tracking (Under 80% Threshold - Auto Approval)
+  [PASS] Added Expense 1: Amount=LKR 400,000.00 | Status='Approved' | Requires Human Approval=False
+  [PASS] Added Expense 2: Amount=LKR 350,000.00 | Status='Approved' | Requires Human Approval=False
+
+[TEST CASE 3] Over-Threshold Expense Auto-Flagging (>80% Warning)
+  [PASS] Added Expense 3: Amount=LKR 600,000.00 | Status='PendingForHumanApproval' | Requires Human Approval=True
+  [PASS] Approval Request Reason: Expense amount (LKR 600,000.00) pushes total spending to LKR 1,350,000.00, which breaches the 80.0% threshold limit (LKR 1,200,000.00).
+
+[TEST CASE 4] Human Review & Approval Workflow
+  [PASS] Approval Request Reviewed: Decision='Approved', Reviewed By='Finance Director Sunil'
+
+[TEST CASE 5] Payment Processing & Transaction Logging
+  [PASS] Payment Processed: ID=pay-f8d88af6, Ref='ch_3Mv89x2eZvKY', Amount=LKR 400,000.00, Status='Completed'
+
+[TEST CASE 6] Budget vs. Actual Analytics Calculation
+  [PASS] Total Budget : LKR 1,500,000.00
+  [PASS] Total Spent  : LKR 1,350,000.00
+  [PASS] Remaining    : LKR 150,000.00
+  [PASS] Utilization  : 90.0%
+  [PASS] Over 80% Line: True
+
+[TEST CASE 7] Agent Presentable English Budget Analytics Report Output
+
+================================================================================
+               BUDGET VS. ACTUAL FINANCIAL ANALYTICS REPORT                     
+================================================================================
+ Agent Name         : Budget & Financial Controller Agent (IT24103303)
+ Budget Reference   : bgt-2a4d9330
+ Event Identifier   : evt-product-launch-2027
+--------------------------------------------------------------------------------
+ EXECUTIVE FINANCIAL SUMMARY:
+  • Total Approved Budget      : LKR 1,500,000.00
+  • Auto-Approval Threshold    : LKR 1,200,000.00 (80.0%)
+  • Total Committed Expenditure: LKR 1,350,000.00
+  • Pending Human Approvals    : LKR 0.00
+  • Remaining Available Funds  : LKR 150,000.00
+  • Budget Utilization Rate    : 90.0%
+--------------------------------------------------------------------------------
+ CATEGORY SPENDING BREAKDOWN:
+  - [VENUE] : LKR 400,000.00 (26.7% of total budget)
+  - [CATERING] : LKR 350,000.00 (23.3% of total budget)
+  - [AV/SOUND] : LKR 600,000.00 (40.0% of total budget)
+--------------------------------------------------------------------------------
+ STRATEGIC AGENT INSIGHTS & RISK ASSESSMENT:
+  ⚠️ FINANCIAL RISK: Total spent has exceeded the 80% warning threshold.
+  RECOMMENDATION: Restrict further discretionary spending; enforce strict approval gates.
+================================================================================
+
+================================================================================
+                  ALL TEST CASES COMPLETED SUCCESSFULLY (100% PASS)              
+================================================================================

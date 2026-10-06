@@ -1,0 +1,49 @@
+================================================================================
+       TEST SUITE: STUDENT 2 (IT24101737) - VENUE & VENDOR BOOKING              
+================================================================================
+
+[TEST CASE 1] Resource Registration & Search / Filtering
+  [PASS] Registered Venue 1: 'Cinnamon Grand Oak Room' (Cap: 400, LKR 45,000.00/hr)
+  [PASS] Registered Venue 2: 'Shangri-La Ballroom' (Cap: 600, LKR 75,000.00/hr)
+  [PASS] Registered Vendor 1: 'SoundWave Audio Systems' (Sound/AV, Rating: 4.9/5.0)
+  [PASS] Search Venues Result: Found 2 venues available on 2027-11-20
+
+[TEST CASE 2] Booking Creation & Status Workflow
+  [PASS] Created Booking 1: ID=bk-5c44bce7, Resource='Cinnamon Grand Oak Room', Cost=LKR 360,000.00, Status='Requested'
+  [PASS] Confirmed Booking 1: Status='Confirmed'
+
+[TEST CASE 3] Double-Booking Conflict Prevention Enforcement
+  [PASS] Created Competing Booking 2 (Status='Requested') on same date for Cinnamon Grand Oak Room
+  [PASS] SUCCESS: Double-Booking Conflict caught expected exception -> 'DOUBLE-BOOKING CONFLICT: Resource 'vnu-10cc9d14' already has a Confirmed booking on 2027-11-20. Booking request REJECTED.'
+
+[TEST CASE 4] Alternate Venue Recommendation Engine
+  [PASS] Alternate Venues Found: 1
+    - Alternate: Shangri-La Ballroom | Fit Score: 92 | Reason: Sufficient capacity (600 >= 350), located in Colombo 02, fully available on 2027-11-20.
+
+[TEST CASE 5] Agent Presentable English Conflict Resolution Output
+
+================================================================================
+            VENUE BOOKING CONFLICT & ALTERNATE PROPOSAL REPORT                 
+================================================================================
+ Agent Name         : Venue & Vendor Matchmaker Agent (IT24101737)
+ Conflict Target    : Cinnamon Grand Oak Room (ID: vnu-10cc9d14)
+ Requested Date     : 2027-11-20
+ Required Capacity   : 350 attendees
+--------------------------------------------------------------------------------
+ CONFLICT ANALYSIS:
+  ⚠️ DOUBLE-BOOKING DETECTED: Cinnamon Grand Oak Room is already confirmed for another event on 2027-11-20.
+  The booking request was automatically rejected by the business conflict checker.
+--------------------------------------------------------------------------------
+ RECOMMENDED ALTERNATE VENUES:
+  1. SHANGRI-LA BALLROOM (Fit Score: 92/100)
+      Location: Colombo 02 | Capacity: 600 | Price: LKR 75,000.00/hr
+      Reason: Sufficient capacity (600 >= 350), located in Colombo 02, fully available on 2027-11-20.
+--------------------------------------------------------------------------------
+ NEXT STEPS & ACTION PLAN:
+  1. Select one of the recommended alternate venues listed above.
+  2. Invoke create_booking() to reserve the selected alternate resource.
+================================================================================
+
+================================================================================
+                  ALL TEST CASES COMPLETED SUCCESSFULLY (100% PASS)              
+================================================================================

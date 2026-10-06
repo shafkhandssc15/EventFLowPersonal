@@ -1,0 +1,54 @@
+================================================================================
+    TEST SUITE: STUDENT 3 (IT24103127) - ATTENDEE REGISTRATION & CHECK-IN       
+================================================================================
+
+[TEST CASE 1] Attendee Registration & QR Code Generation
+  [PASS] Registered Attendee 1: ID=reg-762b0ce4, Name='Kamal Gunaratne', QR='QR-356CA212', Status='Registered'
+  [PASS] Registered Attendee 2: ID=reg-9e727e79, Name='Dilani Jayawardena', QR='QR-4E2F6DE8', Status='Registered'
+
+[TEST CASE 2] Confirmation Email & SMS Notification Dispatch
+  [PASS] Total Notifications Sent: 4 notifications logged
+    - [Email] Recipient: kamal@techlanka.lk | Subject: 'Registration Confirmed! Your QR Code Ticket: QR-356CA212'
+    - [SMS] Recipient: +94771234567 | Subject: 'Ticket Confirmation'
+    - [Email] Recipient: dilani@horizon.lk | Subject: 'Registration Confirmed! Your QR Code Ticket: QR-4E2F6DE8'
+    - [SMS] Recipient: +94719876543 | Subject: 'Ticket Confirmation'
+
+[TEST CASE 3] Ticket Transfer Workflow
+  [PASS] Transferred Ticket: RegID=reg-9e727e79, New Name='Chaminda Vass', Status='Transferred'
+
+[TEST CASE 4] QR Check-in Processing & Duplicate Scan Prevention
+  [PASS] Valid Check-in 1 Approved: Attendee='Kamal Gunaratne', QR='QR-356CA212', Status='SUCCESS'
+  [PASS] SUCCESS: Duplicate Check-in Prevention caught expected exception -> 'SECURITY ALERT: Duplicate check-in detected! Ticket QR 'QR-356CA212' for Kamal Gunaratne was ALREADY scanned.'
+
+[TEST CASE 5] Attendee Roster CSV Export
+  [PASS] CSV Export Generated: 3 lines (Header + 2 attendee records)
+    Registration ID,Attendee Name,Email,Phone,QR Code,Status,Registered At
+    reg-762b0ce4,Kamal Gunaratne,kamal@techlanka.lk,+94771234567,QR-356CA212,CheckedIn,2026-10-06T10:54:52.218369
+    reg-9e727e79,Chaminda Vass,chaminda@sports.lk,+94701112223,QR-4E2F6DE8,Transferred,2026-10-06T10:54:52.218422
+
+[TEST CASE 6] Agent Presentable English Audit Report Output
+
+================================================================================
+             ATTENDEE CHECK-IN & GATE SECURITY AUDIT REPORT                     
+================================================================================
+ Agent Name        : Attendee Check-in & Security Specialist Agent (IT24103127)
+ Event Reference   : evt-ai-expo-2027
+--------------------------------------------------------------------------------
+ ATTENDANCE METRICS & TURNOUT SUMMARY:
+  • Total Registered Attendees : 2
+  • Successfully Checked-In    : 1
+  • Tickets Transferred        : 1
+  • Real-Time Turnout Rate     : 50.0%
+--------------------------------------------------------------------------------
+ GATE SCAN SECURITY LOG:
+  ✔ Valid Scans Approved       : 1
+  ⚠️ Duplicate Scans Blocked   : 1
+--------------------------------------------------------------------------------
+ SECURITY EVALUATION & AGENT REMARKS:
+  ⚠️ SECURITY NOTICE: 1 duplicate QR scan attempt(s) were caught and blocked at turnstiles.
+  ACTION ITEM: Security stewards acted correctly in enforcing anti-passback duplicate protection.
+================================================================================
+
+================================================================================
+                  ALL TEST CASES COMPLETED SUCCESSFULLY (100% PASS)              
+================================================================================
