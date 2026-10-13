@@ -322,4 +322,41 @@ public class EventsControllerTests
         Assert.IsType<OkObjectResult>(promoteSuccess);
         Assert.Equal(WaitlistStatus.Notified, firstEntry.Status);
     }
+
+    [Fact]
+    public async Task Analytics_ReturnsOccupancyAndMetricsSuccessfully()
+    {
+        // Arrange
+        using var db = TestDbContextFactory.Create();
+        var controller = new EventsController(db);
+        var ev = new Event { Title = "AI World 2027", Capacity = 200, StartDate = DateTimeOffset.UtcNow.AddDays(14) };
+        db.Events.Add(ev);
+        db.TicketTypes.AddRange(
+            new TicketType { EventId = ev.Id, Name = "VIP", Price = 100m, Quantity = 50, Sold = 40 },
+            new TicketType { EventId = ev.Id, Name = "General", Price = 50m, Quantity = 150, Sold = 60 }
+        );
+        var attendee = new User { Name = "Sam", Email = "sam@test.com", PasswordHash = "pw" };
+        db.Users.Add(attendee);
+        db.Registrations.Add(new Registration { EventId = ev.Id, Attendee = attendee, Status = RegistrationStatus.CheckedIn });
+        await db.SaveChangesAsync();
+
+        // Act
+        var result = await controller.Analytics(ev.Id);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        dynamic? data = okResult.Value;
+        Assert.NotNull(data);
+        int totalSold = (int)data.GetType().GetProperty("totalSold")!.GetValue(data)!;
+        double occupancy = (double)data.GetType().GetProperty("occupancyRate")!.GetValue(data)!;
+        decimal totalRevenue = (decimal)data.GetType().GetProperty("totalRevenue")!.GetValue(data)!;
+        int checkedInCount = (int)data.GetType().GetProperty("checkedInCount")!.GetValue(data)!;
+
+        // Total sold: 40 + 60 = 100 out of 200 => 50%
+        // Revenue: 40*100 + 60*50 = 4000 + 3000 = 7000
+        Assert.Equal(100, totalSold);
+        Assert.Equal(50.0, occupancy);
+        Assert.Equal(7000m, totalRevenue);
+        Assert.Equal(1, checkedInCount);
+    }
 }

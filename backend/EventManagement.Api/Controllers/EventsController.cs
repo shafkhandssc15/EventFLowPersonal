@@ -57,12 +57,14 @@ public class EventsController : ControllerBase
     // READ — list/search/filter/paginate
     [HttpGet]
     public async Task<ActionResult> List(
-        [FromQuery] string? category, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to,
-        [FromQuery] string? location, [FromQuery] string sortBy = "date",
+        [FromQuery] string? search = null, [FromQuery] string? category = null, [FromQuery] DateTimeOffset? from = null, [FromQuery] DateTimeOffset? to = null,
+        [FromQuery] string? location = null, [FromQuery] string sortBy = "date",
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         var query = _db.Events.Include(e => e.TicketTypes).AsQueryable();
 
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(e => e.Title.Contains(search) || (e.Description != null && e.Description.Contains(search)));
         if (!string.IsNullOrWhiteSpace(category)) query = query.Where(e => e.Category == category);
         if (!string.IsNullOrWhiteSpace(location)) query = query.Where(e => e.Location != null && e.Location.Contains(location));
         if (from.HasValue) query = query.Where(e => e.StartDate >= from);
@@ -179,6 +181,40 @@ public class EventsController : ControllerBase
             Remaining = Math.Max(0, t.Quantity - t.Sold)
         });
         return Ok(new { eventId = id, tickets = report, totalRevenue = report.Sum(r => r.Revenue) });
+    }
+
+    // Business-specific op — real-time analytics & occupancy metrics
+    [HttpGet("{id}/analytics")]
+    public async Task<ActionResult> Analytics(Guid id)
+    {
+        var ev = await _db.Events
+            .Include(e => e.TicketTypes)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+
+        var totalSold = ev.TicketTypes.Sum(t => t.Sold);
+        var totalCapacity = ev.Capacity > 0 ? ev.Capacity : ev.TicketTypes.Sum(t => t.Quantity);
+        var occupancyRate = totalCapacity > 0 ? Math.Round((double)totalSold / totalCapacity * 100, 2) : 0;
+        var totalRevenue = ev.TicketTypes.Sum(t => t.Sold * t.Price);
+        var waitlistCount = await _db.WaitlistEntries
+            .CountAsync(w => w.TicketType != null && w.TicketType.EventId == id && w.Status == WaitlistStatus.Waiting);
+        var registrationsCount = await _db.Registrations.CountAsync(r => r.EventId == id);
+        var checkedInCount = await _db.Registrations.CountAsync(r => r.EventId == id && r.Status == RegistrationStatus.CheckedIn);
+
+        return Ok(new
+        {
+            eventId = id,
+            title = ev.Title,
+            status = ev.Status.ToString(),
+            totalCapacity,
+            totalSold,
+            occupancyRate,
+            totalRevenue,
+            waitlistCount,
+            registrationsCount,
+            checkedInCount,
+            daysUntilEvent = Math.Max(0, (int)(ev.StartDate - DateTimeOffset.UtcNow).TotalDays)
+        });
     }
 
     // Waitlist — join queue when sold out

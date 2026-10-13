@@ -10,7 +10,7 @@ Working Directory: D:\event-management-platform\event-management-platform\backen
   Filter      : dotnet test --filter "FullyQualifiedName~EventsControllerTests"
 --------------------------------------------------------------------------------
   [PASS] All test cases in suite passed successfully!
-  [METRICS] Passed!  - Failed:     0, Passed:    11, Skipped:     0, Total:    11, Duration: 1 s - EventManagement.Tests.dll (net10.0)
+  [METRICS] Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 2 s - EventManagement.Tests.dll (net10.0)
 
 --------------------------------------------------------------------------------
 [SUITE 2/5] Student 2 — Venue & Vendor Booking (VenuesVendorsController.cs)

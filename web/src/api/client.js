@@ -32,6 +32,7 @@ export const api = {
   publishEvent: (id) => request(`/events/${id}/publish`, { method: "POST" }),
   cancelEvent: (id) => request(`/events/${id}`, { method: "DELETE" }),
   salesReport: (id) => request(`/events/${id}/sales-report`),
+  eventAnalytics: (id) => request(`/events/${id}/analytics`),
 
   // Venues & Vendors (Student 2)
   searchVenues: (params = {}) => request(`/venues?${new URLSearchParams(params)}`),
