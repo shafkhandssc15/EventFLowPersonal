@@ -1,0 +1,49 @@
+================================================================================
+     ASP.NET CORE BACKEND API — INDIVIDUAL TEST SUITE EXECUTION REPORT          
+================================================================================
+Project Target : EventManagement.Tests (xUnit + EF Core In-Memory + Mock HTTP)
+Working Directory: D:\event-management-platform\event-management-platform\backend\EventManagement.Tests
+
+--------------------------------------------------------------------------------
+[SUITE 1/5] Student 1 — Event Creation & Ticketing (EventsController.cs)
+  Target File : Controllers/EventsControllerTests.cs
+  Filter      : dotnet test --filter "FullyQualifiedName~EventsControllerTests"
+--------------------------------------------------------------------------------
+  [PASS] All test cases in suite passed successfully!
+  [METRICS] Passed!  - Failed:     0, Passed:    11, Skipped:     0, Total:    11, Duration: 1 s - EventManagement.Tests.dll (net10.0)
+
+--------------------------------------------------------------------------------
+[SUITE 2/5] Student 2 — Venue & Vendor Booking (VenuesVendorsController.cs)
+  Target File : Controllers/VenuesVendorsControllerTests.cs
+  Filter      : dotnet test --filter "FullyQualifiedName~VenuesVendorsControllerTests"
+--------------------------------------------------------------------------------
+  [PASS] All test cases in suite passed successfully!
+  [METRICS] Passed!  - Failed:     0, Passed:     9, Skipped:     0, Total:     9, Duration: 1 s - EventManagement.Tests.dll (net10.0)
+
+--------------------------------------------------------------------------------
+[SUITE 3/5] Student 3 — Attendee Registration & QR Check-in (RegistrationsController.cs)
+  Target File : Controllers/RegistrationsControllerTests.cs
+  Filter      : dotnet test --filter "FullyQualifiedName~RegistrationsControllerTests"
+--------------------------------------------------------------------------------
+  [PASS] All test cases in suite passed successfully!
+  [METRICS] Passed!  - Failed:     0, Passed:     9, Skipped:     0, Total:     9, Duration: 1 s - EventManagement.Tests.dll (net10.0)
+
+--------------------------------------------------------------------------------
+[SUITE 4/5] Student 4 — Budget Allocation, Expenses & Approvals (BudgetsController.cs)
+  Target File : Controllers/BudgetsControllerTests.cs
+  Filter      : dotnet test --filter "FullyQualifiedName~BudgetsControllerTests"
+--------------------------------------------------------------------------------
+  [PASS] All test cases in suite passed successfully!
+  [METRICS] Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 1 s - EventManagement.Tests.dll (net10.0)
+
+--------------------------------------------------------------------------------
+[SUITE 5/5] AI Subsystem — Agentic Orchestration & Approval Gate (AgentWorkflowController.cs)
+  Target File : Controllers/AgentWorkflowControllerTests.cs
+  Filter      : dotnet test --filter "FullyQualifiedName~AgentWorkflowControllerTests"
+--------------------------------------------------------------------------------
+  [PASS] All test cases in suite passed successfully!
+  [METRICS] Passed!  - Failed:     0, Passed:     6, Skipped:     0, Total:     6, Duration: 1 s - EventManagement.Tests.dll (net10.0)
+
+================================================================================
+  OVERALL RESULT: 100% PASS (5/5 Controller Test Suites Passed)
+================================================================================
