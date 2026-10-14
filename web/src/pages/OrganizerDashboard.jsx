@@ -131,7 +131,7 @@ export default function OrganizerDashboard() {
   const { user } = useAuth();
 
   // ── Realtime: events & venues from central Supabase subscription ───────────
-  const { events, venues: realtimeVenues, upsertEvent, deleteEvent: rtDeleteEvent, connected } = useRealtime();
+  const { events, setEvents, venues: realtimeVenues, upsertEvent, deleteEvent: rtDeleteEvent, connected } = useRealtime();
 
   const [registeredVenues, setRegisteredVenues] = useState([]);
   const [selectedVenue, setSelectedVenue] = useState(null);
@@ -1038,12 +1038,19 @@ export default function OrganizerDashboard() {
     try {
       api.requestDeleteEvent(id).catch(() => {});
       
-      // 1. Update event status in state & localStorage
+      // 1. Mark event as pending deletion in Supabase Events table
+      try {
+        await supabase.from("Events").update({ Status: "PendingDeletion" }).eq("Id", id);
+      } catch (sbErr) {
+        console.warn("[OrganizerDashboard] Supabase Events deletion mark warning:", sbErr);
+      }
+
+      // 2. Update event status in state & localStorage
       const updatedEvents = events.map(e => e.id === id ? { ...e, status: "Deletion Requested", deletionPending: true } : e);
-      setEvents(updatedEvents);
+      if (typeof setEvents === "function") setEvents(updatedEvents);
       localStorage.setItem("ef_events", JSON.stringify(updatedEvents));
 
-      // 2. Add deletion approval request to ef_pending_approvals queue for Admin notification & action
+      // 3. Add deletion approval request to ef_pending_approvals queue for Admin notification & action
       const pendingApprovalItem = {
         id: `del-ev-${Date.now()}`,
         type: "EVENT_DELETION",
@@ -1064,6 +1071,22 @@ export default function OrganizerDashboard() {
           startDate: targetEvent?.startDate || new Date().toISOString()
         }
       };
+
+      // 4. Also insert into Supabase ApprovalRequests table so Admin sees it in live DB
+      try {
+        await supabase.from("ApprovalRequests").insert({
+          Id: pendingApprovalItem.id,
+          Type: "EVENT_DELETION",
+          EntityId: id,
+          EntityName: targetEvent?.title || "Event Deletion",
+          Role: "Organizer",
+          Status: "Pending",
+          Reason: JSON.stringify(pendingApprovalItem.details),
+          CreatedAt: new Date().toISOString()
+        });
+      } catch (arErr) {
+        console.warn("[OrganizerDashboard] Supabase ApprovalRequests insert warning:", arErr);
+      }
 
       const existingApprovals = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
       const updatedApprovals = [pendingApprovalItem, ...existingApprovals.filter(a => a.targetId !== id)];
@@ -1095,7 +1118,7 @@ export default function OrganizerDashboard() {
   }
 
   // Rule: Draft events are ONLY visible to their creator organizer. Other organizers cannot see them.
-  const visibleEvents = events.filter(e => e.status !== "Draft" || isEventCreator(e, user));
+  const visibleEvents = events.filter(e => e.status !== "Cancelled" && (e.status !== "Draft" || isEventCreator(e, user)));
 
   const stats = {
     total:     visibleEvents.length,
@@ -1506,7 +1529,7 @@ export default function OrganizerDashboard() {
                   className={`btn btn-sm ${eventFilter === "mine" ? "btn-primary" : "btn-secondary"}`}
                   style={{ fontSize: 12 }}
                 >
-                  My Created Events ({events.filter(e => isEventCreator(e, user)).length})
+                  My Created Events ({events.filter(e => e.status !== "Cancelled" && isEventCreator(e, user)).length})
                 </button>
                 <button
                   type="button"
@@ -1522,12 +1545,13 @@ export default function OrganizerDashboard() {
 
             {loading ? (
               <div className="spinner-wrap"><div className="spinner" /></div>
-            ) : events.length === 0 ? (
+            ) : events.filter(e => e.status !== "Cancelled").length === 0 ? (
               <div className="empty">
                 <div className="empty-title">No events yet</div>
                 <div className="empty-desc">Click "Create Event" to host your first event at a registered venue.</div>
               </div>
             ) : (events.filter(ev => {
+              if (ev.status === "Cancelled") return false;
               if (ev.status === "Draft") return isEventCreator(ev, user);
               return eventFilter === "all" || isEventCreator(ev, user);
             })).length === 0 ? (
@@ -1551,8 +1575,7 @@ export default function OrganizerDashboard() {
                   <tbody>
                     {events
                       .filter(ev => {
-                        // Rule: Draft events MUST ONLY be visible to their creator organizer!
-                        // Other organizers CANNOT see another organizer's draft events!
+                        if (ev.status === "Cancelled") return false;
                         if (ev.status === "Draft") {
                           return isEventCreator(ev, user);
                         }

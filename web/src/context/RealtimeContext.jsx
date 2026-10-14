@@ -153,7 +153,8 @@ export function RealtimeProvider({ children }) {
       }
 
       if (!sbErr && dbEvents) {
-        const mapped = dbEvents.map(row => mapEvent(row, ticketTypesMap));
+        const activeEvents = dbEvents.filter(row => row.Status !== "Cancelled");
+        const mapped = activeEvents.map(row => mapEvent(row, ticketTypesMap));
         setEvents(mapped);
         localStorage.setItem("ef_events", JSON.stringify(mapped));
       } else {
@@ -169,7 +170,8 @@ export function RealtimeProvider({ children }) {
             if (pageItems.length < 200) break;
             page += 1;
           }
-          const mapped = items.map(row => mapEvent(row, ticketTypesMap));
+          const activeItems = items.filter(row => row.Status !== "Cancelled" && row.status !== "Cancelled");
+          const mapped = activeItems.map(row => mapEvent(row, ticketTypesMap));
           setEvents(mapped);
           localStorage.setItem("ef_events", JSON.stringify(mapped));
         } catch {
@@ -246,9 +248,20 @@ export function RealtimeProvider({ children }) {
         addToast(`🎉 New event: "${ev.title}"`, "success");
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Events" }, ({ new: row }) => {
+        const id = row.Id ?? row.id;
+        if (row.Status === "Cancelled") {
+          setEvents(prev => {
+            const next = prev.filter(e => e.id !== id);
+            localStorage.setItem("ef_events", JSON.stringify(next));
+            return next;
+          });
+          setLastUpdate(Date.now());
+          addToast("🗑️ An event was removed", "info");
+          return;
+        }
         setEvents(prev => {
-          const existing = prev.find(e => e.id === (row.Id ?? row.id));
-          const ev = mapEvent(row, { [row.Id ?? row.id]: existing?.ticketTypes || [] });
+          const existing = prev.find(e => e.id === id);
+          const ev = mapEvent(row, { [id]: existing?.ticketTypes || [] });
           const next = prev.map(e => e.id === ev.id ? { ...e, ...ev, ticketTypes: existing?.ticketTypes || ev.ticketTypes } : e);
           localStorage.setItem("ef_events", JSON.stringify(next));
           return next;

@@ -27,6 +27,7 @@ export default function EventsList() {
   // Rule: Draft events are ONLY visible to the creator organizer.
   // Attendees, visitors, and other organizers CANNOT see draft events!
   const isDraftVisible = (ev) => {
+    if (ev.status === "Cancelled" || ev.status === "PendingDeletion") return false;
     if (ev.status !== "Draft") return true;
     if (!user) return false;
     if (user.role === "Admin") return true;

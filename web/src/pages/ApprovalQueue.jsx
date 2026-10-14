@@ -97,9 +97,21 @@ export default function ApprovalQueue() {
         if (lp.type === "EVENT_DELETION") {
           if (approve) {
             api.adminDeleteEvent(lp.targetId).catch(() => {});
+
+            // Delete dependent records first to avoid foreign key violations
+            try { await supabase.from("TicketTypes").delete().eq("EventId", lp.targetId); } catch {}
+            try { await supabase.from("Registrations").delete().eq("EventId", lp.targetId); } catch {}
+            try { await supabase.from("VendorBookings").delete().eq("EventId", lp.targetId); } catch {}
+            try { await supabase.from("Expenses").delete().eq("EventId", lp.targetId); } catch {}
+
             try {
-              await supabase.from("Events").delete().eq("Id", lp.targetId);
-            } catch {}
+              const { error: delErr } = await supabase.from("Events").delete().eq("Id", lp.targetId);
+              if (delErr) {
+                await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", lp.targetId);
+              }
+            } catch {
+              await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", lp.targetId).catch(() => {});
+            }
             try {
               const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
               localStorage.setItem("ef_events", JSON.stringify(saved.filter(e => e.id !== lp.targetId)));
