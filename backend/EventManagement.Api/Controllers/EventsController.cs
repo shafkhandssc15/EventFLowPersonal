@@ -165,6 +165,28 @@ public class EventsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id}/request-delete")]
+    public async Task<IActionResult> RequestDelete(Guid id)
+    {
+        var ev = await _db.Events.FindAsync(id);
+        if (ev is null) return NotFound();
+        ev.Status = EventStatus.PendingDeletion;
+        ev.UpdatedAt = DateTimeOffset.UtcNow;
+        await _db.SaveChangesAsync();
+        return Ok(ev);
+    }
+
+    [HttpDelete("{id}/admin-delete")]
+    public async Task<IActionResult> AdminDelete(Guid id)
+    {
+        var ev = await _db.Events.FindAsync(id);
+        if (ev is null) return NotFound();
+        ev.Status = EventStatus.Cancelled;
+        ev.UpdatedAt = DateTimeOffset.UtcNow;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // Business-specific op — sales report per event
     [HttpGet("{id}/sales-report")]
     public async Task<ActionResult> SalesReport(Guid id)

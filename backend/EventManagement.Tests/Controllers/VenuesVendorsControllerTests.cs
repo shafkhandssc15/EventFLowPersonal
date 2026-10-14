@@ -98,6 +98,38 @@ public class VenuesVendorsControllerTests
     }
 
     [Fact]
+    public async Task Venues_RequestDelete_SetsPendingDeletion()
+    {
+        using var db = TestDbContextFactory.Create();
+        var controller = new VenuesController(db);
+        var venue = new Venue { Name = "Old Pavilion", IsPendingDeletion = false };
+        db.Venues.Add(venue);
+        await db.SaveChangesAsync();
+
+        var result = await controller.RequestDelete(venue.Id);
+
+        Assert.IsType<OkObjectResult>(result);
+        var updated = await db.Venues.FindAsync(venue.Id);
+        Assert.True(updated!.IsPendingDeletion);
+    }
+
+    [Fact]
+    public async Task Venues_AdminDelete_DeactivatesOrRemovesVenue()
+    {
+        using var db = TestDbContextFactory.Create();
+        var controller = new VenuesController(db);
+        var venue = new Venue { Name = "Delete Me Hall", IsActive = true };
+        db.Venues.Add(venue);
+        await db.SaveChangesAsync();
+
+        var result = await controller.AdminDelete(venue.Id);
+
+        Assert.IsType<NoContentResult>(result);
+        var updated = await db.Venues.FindAsync(venue.Id);
+        Assert.Null(updated);
+    }
+
+    [Fact]
     public async Task Venues_CheckAvailability_DetectsConflictsAccurately()
     {
         using var db = TestDbContextFactory.Create();

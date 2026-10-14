@@ -77,6 +77,37 @@ public class VenuesController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id}/request-delete")]
+    public async Task<IActionResult> RequestDelete(Guid id)
+    {
+        var v = await _db.Venues.FindAsync(id);
+        if (v is null) return NotFound();
+        v.IsPendingDeletion = true;
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Deletion requested", venue = v });
+    }
+
+    [HttpDelete("{id}/admin-delete")]
+    public async Task<IActionResult> AdminDelete(Guid id)
+    {
+        var v = await _db.Venues.FindAsync(id);
+        if (v is null) return NotFound();
+
+        var hasBookings = await _db.VendorBookings.AnyAsync(b => b.VenueId == id);
+        if (hasBookings)
+        {
+            v.IsActive = false;
+            v.IsPendingDeletion = false;
+        }
+        else
+        {
+            _db.Venues.Remove(v);
+        }
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // Business op — is this venue free for a given date range?
     [HttpGet("{id}/availability")]
     public async Task<ActionResult> CheckAvailability(Guid id, [FromQuery] DateTimeOffset start, [FromQuery] DateTimeOffset end)
@@ -134,14 +165,43 @@ public class VendorsController : ControllerBase
 
 
     [HttpDelete("{id}")]
-
-
     public async Task<IActionResult> Deactivate(Guid id, [FromHeader(Name = "X-User-Id")] Guid userId)
     {
         var v = await _db.Vendors.FindAsync(id);
         if (v is null) return NotFound();
         if (v.OwnerId != userId) return Forbid();
         v.IsPendingDeletion = true;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("{id}/request-delete")]
+    public async Task<IActionResult> RequestDelete(Guid id)
+    {
+        var v = await _db.Vendors.FindAsync(id);
+        if (v is null) return NotFound();
+        v.IsPendingDeletion = true;
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Deletion requested", vendor = v });
+    }
+
+    [HttpDelete("{id}/admin-delete")]
+    public async Task<IActionResult> AdminDelete(Guid id)
+    {
+        var v = await _db.Vendors.FindAsync(id);
+        if (v is null) return NotFound();
+
+        var hasBookings = await _db.VendorBookings.AnyAsync(b => b.VendorId == id);
+        if (hasBookings)
+        {
+            v.IsActive = false;
+            v.IsPendingDeletion = false;
+        }
+        else
+        {
+            _db.Vendors.Remove(v);
+        }
+
         await _db.SaveChangesAsync();
         return NoContent();
     }

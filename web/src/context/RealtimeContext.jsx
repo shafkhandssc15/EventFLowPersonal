@@ -190,14 +190,16 @@ export function RealtimeProvider({ children }) {
         .order("CreatedAt", { ascending: false });
 
       if (!vErr && dbVenues) {
-        const mapped = dbVenues.map(mapVenue);
+        const activeOnly = dbVenues.filter(row => row.IsActive !== false && row.isActive !== false);
+        const mapped = activeOnly.map(mapVenue);
         setVenues(mapped);
         localStorage.setItem("ef_venues", JSON.stringify(mapped));
       } else {
         try {
           const res = await api.searchVenues({ pageSize: 200 });
           const items = res?.items ?? res ?? [];
-          const mapped = items.map(mapVenue);
+          const activeItems = items.filter(i => i.isActive !== false);
+          const mapped = activeItems.map(mapVenue);
           setVenues(mapped);
           localStorage.setItem("ef_venues", JSON.stringify(mapped));
         } catch {
@@ -327,12 +329,21 @@ export function RealtimeProvider({ children }) {
         addToast(`🏛️ New venue: "${venue.name}"`, "info");
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Venues" }, ({ new: row }) => {
-        const venue = mapVenue(row);
-        setVenues(prev => {
-          const next = prev.map(v => v.id === venue.id ? { ...v, ...venue } : v);
-          localStorage.setItem("ef_venues", JSON.stringify(next));
-          return next;
-        });
+        const id = row.Id ?? row.id;
+        if (row.IsActive === false || row.isActive === false) {
+          setVenues(prev => {
+            const next = prev.filter(v => v.id !== id);
+            localStorage.setItem("ef_venues", JSON.stringify(next));
+            return next;
+          });
+        } else {
+          const venue = mapVenue(row);
+          setVenues(prev => {
+            const next = prev.map(v => v.id === venue.id ? { ...v, ...venue } : v);
+            localStorage.setItem("ef_venues", JSON.stringify(next));
+            return next;
+          });
+        }
         setLastUpdate(Date.now());
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "Venues" }, ({ old: row }) => {

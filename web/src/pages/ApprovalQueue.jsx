@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
+import { supabase } from "../api/supabase.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { IcRefresh, IcCheck, IcX, IcShield } from "../components/Icons.jsx";
 
@@ -94,40 +95,67 @@ export default function ApprovalQueue() {
       if (target?.isLocal && target.rawItem) {
         const lp = target.rawItem;
         if (lp.type === "EVENT_DELETION") {
-          
           if (approve) {
             api.adminDeleteEvent(lp.targetId).catch(() => {});
-            
+            try {
+              await supabase.from("Events").delete().eq("Id", lp.targetId);
+            } catch {}
             try {
               const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
               localStorage.setItem("ef_events", JSON.stringify(saved.filter(e => e.id !== lp.targetId)));
             } catch {}
           } else {
-            
+            try {
+              await supabase.from("Events").update({ Status: "Published" }).eq("Id", lp.targetId);
+            } catch {}
             try {
               const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
               localStorage.setItem("ef_events", JSON.stringify(saved.map(e => e.id === lp.targetId ? { ...e, status: "Published", deletionPending: false } : e)));
             } catch {}
           }
         } else if (lp.type === "VENUE_DELETION") {
-          
           if (approve) {
             api.adminDeleteVenue(lp.targetId).catch(() => {});
-            
+
+            // 1. Delete dependent bookings in Supabase to avoid FK constraints
             try {
-              const saved = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-              localStorage.setItem("ef_registered_venues", JSON.stringify(saved.filter(v => v.id !== lp.targetId)));
+              await supabase.from("VendorBookings").delete().eq("VenueId", lp.targetId);
+            } catch {}
+
+            // 2. Delete or soft-deactivate venue in Supabase
+            try {
+              const { error: delErr } = await supabase.from("Venues").delete().eq("Id", lp.targetId);
+              if (delErr) {
+                await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", lp.targetId);
+              }
+            } catch {
+              await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", lp.targetId).catch(() => {});
+            }
+
+            // 3. Remove from all local caches
+            try {
+              const savedReg = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
+              localStorage.setItem("ef_registered_venues", JSON.stringify(savedReg.filter(v => v.id !== lp.targetId)));
+            } catch {}
+            try {
+              const savedVen = JSON.parse(localStorage.getItem("ef_venues") || "[]");
+              localStorage.setItem("ef_venues", JSON.stringify(savedVen.filter(v => v.id !== lp.targetId)));
             } catch {}
           } else {
-            
+            try {
+              await supabase.from("Venues").update({ IsPendingDeletion: false, IsActive: true }).eq("Id", lp.targetId);
+            } catch {}
             try {
               const saved = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
               localStorage.setItem("ef_registered_venues", JSON.stringify(saved.map(v => v.id === lp.targetId ? { ...v, isDeletionPending: false, status: "Active" } : v)));
             } catch {}
+            try {
+              const savedVen = JSON.parse(localStorage.getItem("ef_venues") || "[]");
+              localStorage.setItem("ef_venues", JSON.stringify(savedVen.map(v => v.id === lp.targetId ? { ...v, isDeletionPending: false, isActive: true } : v)));
+            } catch {}
           }
         } else if (approve) {
           // Account Verification approval
-          
           try {
             const approvedList = JSON.parse(localStorage.getItem("ef_approved_users") || "[]");
             const newActive = {
@@ -144,6 +172,13 @@ export default function ApprovalQueue() {
 
             const regList = JSON.parse(localStorage.getItem("ef_registered_users") || "[]");
             localStorage.setItem("ef_registered_users", JSON.stringify(regList.map(u => u.email?.toLowerCase() === lp.email?.toLowerCase() ? { ...u, isApproved: true } : u)));
+          } catch {}
+        }
+
+        // Sync Supabase ApprovalRequests table if matching row exists
+        if (lp.id) {
+          try {
+            await supabase.from("ApprovalRequests").update({ Status: approve ? "Approved" : "Rejected", ResolvedAt: new Date().toISOString() }).eq("Id", lp.id);
           } catch {}
         }
         

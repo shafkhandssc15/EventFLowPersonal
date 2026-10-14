@@ -122,7 +122,8 @@ export default function VendorDashboard() {
       .order("CreatedAt", { ascending: false })
       .then(({ data: dbVenues, error: vErr }) => {
         if (!vErr && dbVenues) {
-          const mapped = dbVenues.map(row => {
+          const activeOnly = dbVenues.filter(row => row.IsActive !== false && row.isActive !== false);
+          const mapped = activeOnly.map(row => {
             const venueName = row.Name || row.name || "";
             const venueLoc = row.Location || row.location || "";
             const venueCity = row.City || row.city || "";
@@ -142,14 +143,27 @@ export default function VendorDashboard() {
               lng: Number(row.Lng || row.lng || coords.lng),
               amenities: row.Amenities || row.amenities || ["WiFi", "Parking", "AC"],
               description: row.Description || row.description || "",
-              isActive: row.IsActive ?? true
+              isActive: row.IsActive ?? row.isActive ?? true,
+              isDeletionPending: Boolean(row.IsPendingDeletion ?? row.isPendingDeletion ?? false)
             };
           });
 
           setVenues(mapped);
+          localStorage.setItem("ef_registered_venues", JSON.stringify(mapped));
+        } else {
+          try {
+            const cached = JSON.parse(localStorage.getItem("ef_registered_venues") || localStorage.getItem("ef_venues") || "[]");
+            setVenues(cached.filter(v => v.isActive !== false));
+          } catch {}
         }
       })
-      .catch(err => console.warn("Supabase Venues load error:", err));
+      .catch(err => {
+        console.warn("Supabase Venues load error:", err);
+        try {
+          const cached = JSON.parse(localStorage.getItem("ef_registered_venues") || localStorage.getItem("ef_venues") || "[]");
+          setVenues(cached.filter(v => v.isActive !== false));
+        } catch {}
+      });
 
     try {
       const inqs = JSON.parse(localStorage.getItem("ef_venue_inquiries") || "[]");
@@ -456,12 +470,17 @@ export default function VendorDashboard() {
         console.warn("[VendorDashboard] Supabase Venues deletion mark warning:", sbErr);
       }
 
-      // 2. Mark venue as deletion pending in state & localStorage
+      // 2. Mark venue as deletion pending in state & localStorage (both keys)
       const updated = venues.map(v => v.id === id ? { ...v, isDeletionPending: true, status: "Deletion Requested" } : v);
       setVenues(updated);
       localStorage.setItem("ef_registered_venues", JSON.stringify(updated));
+      try {
+        const savedVen = JSON.parse(localStorage.getItem("ef_venues") || "[]");
+        const updatedVen = savedVen.map(v => v.id === id ? { ...v, isDeletionPending: true, status: "Deletion Requested" } : v);
+        localStorage.setItem("ef_venues", JSON.stringify(updatedVen));
+      } catch {}
 
-      // 2. Add to ef_pending_approvals queue for Admin notification and approval
+      // 3. Add to ef_pending_approvals queue for Admin notification and approval
       const pendingApprovalItem = {
         id: `del-ven-${Date.now()}`,
         type: "VENUE_DELETION",
@@ -482,6 +501,22 @@ export default function VendorDashboard() {
           pricePerHour: targetVenue?.pricePerHour
         }
       };
+
+      // 4. Also insert into Supabase ApprovalRequests table so Admin sees it in live DB
+      try {
+        await supabase.from("ApprovalRequests").insert({
+          Id: pendingApprovalItem.id,
+          Type: "VENUE_DELETION",
+          EntityId: id,
+          EntityName: targetVenue?.name || "Venue Deletion",
+          Role: "VendorVenueManager",
+          Status: "Pending",
+          Reason: JSON.stringify(pendingApprovalItem.details),
+          CreatedAt: new Date().toISOString()
+        });
+      } catch (arErr) {
+        console.warn("[VendorDashboard] Supabase ApprovalRequests insert:", arErr);
+      }
 
       const existingApprovals = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
       const updatedApprovals = [pendingApprovalItem, ...existingApprovals.filter(a => a.targetId !== id)];
@@ -653,7 +688,7 @@ export default function VendorDashboard() {
                 className={`btn btn-sm ${venueFilter === "mine" ? "btn-primary" : "btn-secondary"}`}
                 style={{ fontSize: 12 }}
               >
-                My Venues ({venues.filter(v => isVenueManager(v, user)).length})
+                My Venues ({venues.filter(v => v.isActive !== false && isVenueManager(v, user)).length})
               </button>
               <button
                 type="button"
@@ -661,7 +696,7 @@ export default function VendorDashboard() {
                 className={`btn btn-sm ${venueFilter === "all" ? "btn-primary" : "btn-secondary"}`}
                 style={{ fontSize: 12 }}
               >
-                All Venues ({venues.length})
+                All Venues ({venues.filter(v => v.isActive !== false).length})
               </button>
             </div>
           )}
@@ -885,7 +920,7 @@ export default function VendorDashboard() {
         {tab === "venues" && (
           <div className="events-grid">
             {venues
-              .filter(v => venueFilter === "all" || isVenueManager(v, user))
+              .filter(v => v.isActive !== false && (venueFilter === "all" || isVenueManager(v, user)))
               .map(v => {
               const amenities = Array.isArray(v.amenities) ? v.amenities : (v.amenities ? String(v.amenities).split(",") : ["Fiber Internet", "AC", "Backup Generator", "Parking"]);
               const imgUrl = v.image || v.imageUrl || FALLBACK_IMAGE;
