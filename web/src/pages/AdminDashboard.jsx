@@ -168,8 +168,8 @@ export default function AdminDashboard() {
                 const autoItem = {
                   id: autoApprovalId,
                   targetId: pvId,
-                  name: pv.Name || pv.name || "Venue Deletion",
-                  email: "vendor.eventflow@gmail.com",
+                  name: `Venue Deletion: ${pv.Name || pv.name || 'Venue'}`,
+                  managerEmail: "vendor.eventflow@gmail.com",
                   role: "VendorVenueManager",
                   nic: "—",
                   contact: "—",
@@ -216,8 +216,8 @@ export default function AdminDashboard() {
                 const autoItem = {
                   id: autoApprovalId,
                   targetId: peId,
-                  name: pe.Title || pe.title || "Event Deletion",
-                  email: "organizer.eventflow@gmail.com",
+                  name: `Event Deletion: ${pe.Title || pe.title || 'Event'}`,
+                  organizerEmail: "organizer.eventflow@gmail.com",
                   role: "Organizer",
                   nic: "—",
                   contact: "—",

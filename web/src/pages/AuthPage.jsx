@@ -84,6 +84,12 @@ async function verifyAspNetHash(hashedPassword, plainPassword) {
   }
 }
 
+const BUILT_IN_APPROVED_EMAILS = [
+  "admin.eventflow@gmail.com",
+  "organizer.eventflow@gmail.com",
+  "vendor.eventflow@gmail.com"
+];
+
 export default function AuthPage() {
   const { login } = useAuth();
   const [mode, setMode]                 = useState("login"); // "login" | "signup"
@@ -163,9 +169,9 @@ export default function AuthPage() {
 
         const userRole = uRow.Role || uRow.role || "Attendee";
 
-        // Admin and Attendee have immediate platform entry
-        if (userRole !== "Admin" && userRole !== "Attendee") {
-          // Check approval status directly in Supabase ApprovalRequests table
+        // Admin, Attendee, and built-in demo accounts have immediate platform entry
+        if (userRole !== "Admin" && userRole !== "Attendee" && !BUILT_IN_APPROVED_EMAILS.includes(cleanEmail)) {
+          // Check approval status directly in Supabase ApprovalRequests table (Only authentic USER_REGISTRATION requests)
           try {
             const { data: dbReqs } = await supabase
               .from("ApprovalRequests")
@@ -176,6 +182,13 @@ export default function AuthPage() {
               const matchedReq = dbReqs.find(r => {
                 try {
                   const p = JSON.parse(r.Reason || "{}");
+                  const reqType = String(p.type || "").toUpperCase();
+                  // Skip event deletions, venue deletions, expense approvals, ticket bookings
+                  if (reqType === "EVENT_DELETION" || reqType === "VENUE_DELETION" || reqType === "EXPENSE_APPROVAL" || reqType === "BOOKING_APPROVAL" || p.bookingRef || p.targetId || p.details?.targetId) {
+                    return false;
+                  }
+                  const isUserReg = reqType === "USER_REGISTRATION" || reqType === "ACCOUNT_VERIFICATION" || (!p.type && !p.targetId && !p.details?.targetId && !p.bookingRef);
+                  if (!isUserReg) return false;
                   return (p.email || p.applicantEmail || "").toLowerCase().trim() === cleanEmail;
                 } catch {
                   return false;
@@ -233,7 +246,7 @@ export default function AuthPage() {
         const userMeta = sbUser.user_metadata || {};
         const userRole = userMeta.role || "Attendee";
 
-        if (userRole !== "Attendee" && userRole !== "Admin") {
+        if (userRole !== "Attendee" && userRole !== "Admin" && !BUILT_IN_APPROVED_EMAILS.includes(cleanEmail)) {
           try {
             const { data: dbReqs } = await supabase
               .from("ApprovalRequests")
@@ -244,6 +257,12 @@ export default function AuthPage() {
               const matchedReq = dbReqs.find(r => {
                 try {
                   const p = JSON.parse(r.Reason || "{}");
+                  const reqType = String(p.type || "").toUpperCase();
+                  if (reqType === "EVENT_DELETION" || reqType === "VENUE_DELETION" || reqType === "EXPENSE_APPROVAL" || reqType === "BOOKING_APPROVAL" || p.bookingRef || p.targetId || p.details?.targetId) {
+                    return false;
+                  }
+                  const isUserReg = reqType === "USER_REGISTRATION" || reqType === "ACCOUNT_VERIFICATION" || (!p.type && !p.targetId && !p.details?.targetId && !p.bookingRef);
+                  if (!isUserReg) return false;
                   return (p.email || p.applicantEmail || "").toLowerCase().trim() === cleanEmail;
                 } catch {
                   return false;
