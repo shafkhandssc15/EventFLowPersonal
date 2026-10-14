@@ -249,9 +249,9 @@ export function RealtimeProvider({ children }) {
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Events" }, ({ new: row }) => {
         const id = row.Id ?? row.id;
-        if (row.Status === "Cancelled") {
+        if (row.Status === "Cancelled" || row.status === "Cancelled") {
           setEvents(prev => {
-            const next = prev.filter(e => e.id !== id);
+            const next = prev.filter(e => e.id !== id && e.Id !== id && String(e.id || e.Id).toLowerCase() !== String(id).toLowerCase());
             localStorage.setItem("ef_events", JSON.stringify(next));
             return next;
           });
@@ -260,9 +260,9 @@ export function RealtimeProvider({ children }) {
           return;
         }
         setEvents(prev => {
-          const existing = prev.find(e => e.id === id);
+          const existing = prev.find(e => e.id === id || e.Id === id);
           const ev = mapEvent(row, { [id]: existing?.ticketTypes || [] });
-          const next = prev.map(e => e.id === ev.id ? { ...e, ...ev, ticketTypes: existing?.ticketTypes || ev.ticketTypes } : e);
+          const next = prev.map(e => (e.id === ev.id || e.Id === ev.id) ? { ...e, ...ev, ticketTypes: existing?.ticketTypes || ev.ticketTypes } : e);
           localStorage.setItem("ef_events", JSON.stringify(next));
           return next;
         });
@@ -270,9 +270,10 @@ export function RealtimeProvider({ children }) {
         addToast(`✏️ Event updated: "${row.Title ?? row.title}"`, "info");
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "Events" }, ({ old: row }) => {
-        const id = row.Id ?? row.id;
+        const id = row?.Id ?? row?.id;
+        if (!id) return;
         setEvents(prev => {
-          const next = prev.filter(e => e.id !== id);
+          const next = prev.filter(e => e.id !== id && e.Id !== id && String(e.id || e.Id).toLowerCase() !== String(id).toLowerCase());
           localStorage.setItem("ef_events", JSON.stringify(next));
           return next;
         });
@@ -345,14 +346,14 @@ export function RealtimeProvider({ children }) {
         const id = row.Id ?? row.id;
         if (row.IsActive === false || row.isActive === false) {
           setVenues(prev => {
-            const next = prev.filter(v => v.id !== id);
+            const next = prev.filter(v => v.id !== id && v.Id !== id && String(v.id || v.Id).toLowerCase() !== String(id).toLowerCase());
             localStorage.setItem("ef_venues", JSON.stringify(next));
             return next;
           });
         } else {
           const venue = mapVenue(row);
           setVenues(prev => {
-            const next = prev.map(v => v.id === venue.id ? { ...v, ...venue } : v);
+            const next = prev.map(v => (v.id === venue.id || v.Id === venue.id) ? { ...v, ...venue } : v);
             localStorage.setItem("ef_venues", JSON.stringify(next));
             return next;
           });
@@ -360,9 +361,10 @@ export function RealtimeProvider({ children }) {
         setLastUpdate(Date.now());
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "Venues" }, ({ old: row }) => {
-        const id = row.Id ?? row.id;
+        const id = row?.Id ?? row?.id;
+        if (!id) return;
         setVenues(prev => {
-          const next = prev.filter(v => v.id !== id);
+          const next = prev.filter(v => v.id !== id && v.Id !== id && String(v.id || v.Id).toLowerCase() !== String(id).toLowerCase());
           localStorage.setItem("ef_venues", JSON.stringify(next));
           return next;
         });
@@ -497,13 +499,34 @@ export function RealtimeProvider({ children }) {
 
   /** Cancel/delete an event locally + API call + Supabase. */
   const deleteEvent = useCallback(async (id) => {
-    try { await api.cancelEvent(id); } catch {}
+    try { await api.adminDeleteEvent(id); } catch {}
+    try { await supabase.from("TicketTypes").delete().eq("EventId", id); } catch {}
+    try { await supabase.from("Registrations").delete().eq("EventId", id); } catch {}
+    try { await supabase.from("VendorBookings").delete().eq("EventId", id); } catch {}
+    try { await supabase.from("Expenses").delete().eq("EventId", id); } catch {}
     try { await supabase.from("Events").delete().eq("Id", id); } catch {}
     setEvents(prev => {
-      const next = prev.filter(e => e.id !== id);
+      const next = prev.filter(e => e.id !== id && e.Id !== id && String(e.id || e.Id).toLowerCase() !== String(id).toLowerCase());
       localStorage.setItem("ef_events", JSON.stringify(next));
       return next;
     });
+    setLastUpdate(Date.now());
+  }, []);
+
+  /** Delete a venue locally + API call + Supabase. */
+  const deleteVenue = useCallback(async (id) => {
+    try { await api.adminDeleteVenue(id); } catch {}
+    try { await supabase.from("VendorBookings").delete().eq("VenueId", id); } catch {}
+    try { await supabase.from("Venues").delete().eq("Id", id); } catch {}
+    setVenues(prev => {
+      const next = prev.filter(v => v.id !== id && v.Id !== id && String(v.id || v.Id).toLowerCase() !== String(id).toLowerCase());
+      localStorage.setItem("ef_venues", JSON.stringify(next));
+      return next;
+    });
+    try {
+      const savedReg = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
+      localStorage.setItem("ef_registered_venues", JSON.stringify(savedReg.filter(v => v.id !== id && v.Id !== id && String(v.id || v.Id).toLowerCase() !== String(id).toLowerCase())));
+    } catch {}
     setLastUpdate(Date.now());
   }, []);
 
@@ -522,6 +545,7 @@ export function RealtimeProvider({ children }) {
     toasts,
     upsertEvent,
     deleteEvent,
+    deleteVenue,
     refresh,
   };
 

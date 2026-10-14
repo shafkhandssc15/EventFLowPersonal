@@ -186,7 +186,17 @@ export default function VendorDashboard() {
   useEffect(() => {
     loadAll();
     window.addEventListener("storage", loadAll);
-    return () => window.removeEventListener("storage", loadAll);
+
+    // Live Supabase sync for Venues
+    const channel = supabase
+      .channel("vendor-venues-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "Venues" }, () => loadAll())
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("storage", loadAll);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -452,7 +462,7 @@ export default function VendorDashboard() {
   }
 
   async function requestDeleteVenue(id) {
-    const targetVenue = venues.find(v => v.id === id);
+    const targetVenue = venues.find(v => v.id === id || v.Id === id);
     if (!isVenueManager(targetVenue, user)) {
       setError(`Permission denied: Only the Venue Manager responsible for "${targetVenue?.name}" can request its deletion.`);
       return;
@@ -471,18 +481,19 @@ export default function VendorDashboard() {
       }
 
       // 2. Mark venue as deletion pending in state & localStorage (both keys)
-      const updated = venues.map(v => v.id === id ? { ...v, isDeletionPending: true, status: "Deletion Requested" } : v);
+      const updated = venues.map(v => (v.id === id || v.Id === id) ? { ...v, isDeletionPending: true, status: "Deletion Requested" } : v);
       setVenues(updated);
       localStorage.setItem("ef_registered_venues", JSON.stringify(updated));
       try {
         const savedVen = JSON.parse(localStorage.getItem("ef_venues") || "[]");
-        const updatedVen = savedVen.map(v => v.id === id ? { ...v, isDeletionPending: true, status: "Deletion Requested" } : v);
+        const updatedVen = savedVen.map(v => (v.id === id || v.Id === id) ? { ...v, isDeletionPending: true, status: "Deletion Requested" } : v);
         localStorage.setItem("ef_venues", JSON.stringify(updatedVen));
       } catch {}
 
+      const approvalId = crypto.randomUUID();
       // 3. Add to ef_pending_approvals queue for Admin notification and approval
       const pendingApprovalItem = {
-        id: `del-ven-${Date.now()}`,
+        id: approvalId,
         type: "VENUE_DELETION",
         targetId: id,
         name: targetVenue?.name || "Venue Deletion",
@@ -494,6 +505,7 @@ export default function VendorDashboard() {
         status: "PendingAdminApproval",
         submittedAt: new Date().toISOString(),
         details: {
+          targetId: id,
           name: targetVenue?.name,
           location: targetVenue?.location,
           city: targetVenue?.city,
@@ -505,13 +517,9 @@ export default function VendorDashboard() {
       // 4. Also insert into Supabase ApprovalRequests table so Admin sees it in live DB
       try {
         await supabase.from("ApprovalRequests").insert({
-          Id: pendingApprovalItem.id,
-          Type: "VENUE_DELETION",
-          EntityId: id,
-          EntityName: targetVenue?.name || "Venue Deletion",
-          Role: "VendorVenueManager",
+          Id: approvalId,
           Status: "Pending",
-          Reason: JSON.stringify(pendingApprovalItem.details),
+          Reason: JSON.stringify(pendingApprovalItem),
           CreatedAt: new Date().toISOString()
         });
       } catch (arErr) {
@@ -519,7 +527,7 @@ export default function VendorDashboard() {
       }
 
       const existingApprovals = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-      const updatedApprovals = [pendingApprovalItem, ...existingApprovals.filter(a => a.targetId !== id)];
+      const updatedApprovals = [pendingApprovalItem, ...existingApprovals.filter(a => a.targetId !== id && a.details?.targetId !== id)];
       localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedApprovals));
       window.dispatchEvent(new Event("storage"));
 

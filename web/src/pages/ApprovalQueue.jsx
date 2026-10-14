@@ -42,50 +42,90 @@ export default function ApprovalQueue() {
     );
   }
 
-  function load() {
+  async function load() {
     setLoading(true);
     let localPending = [];
     
     try {
-      localPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
+      localPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]").filter(p => p.status === "Pending" || p.status === "PendingAdminApproval");
     } catch {}
 
-    api.approvalQueue()
-      .then(d => {
-        const apiItems = Array.isArray(d) ? d : d.items || [];
-        
-        // Map local deletion approvals to queue format
-        const formattedLocal = localPending.map(lp => ({
-          id: lp.id,
-          reason: lp.type === "EVENT_DELETION" ? `Event Deletion Request: "${lp.details?.title || lp.name}" (by ${lp.requestedBy})` :
-                  lp.type === "VENUE_DELETION" ? `Venue Deletion Request: "${lp.details?.name || lp.name}" (by ${lp.requestedBy})` :
-                  `Account Verification: ${lp.name} (${lp.role})`,
-          status: lp.status || "PendingApproval",
-          createdAt: lp.submittedAt || new Date().toISOString(),
-          isLocal: true,
-          rawItem: lp
-        }));
-        setQueue([...formattedLocal, ...apiItems]);
-      })
+    let dbPending = [];
+    try {
+      const { data: dbReqs, error: sbErr } = await supabase
+        .from("ApprovalRequests")
+        .select("*")
+        .eq("Status", "Pending")
+        .order("CreatedAt", { ascending: false });
+
+      if (!sbErr && dbReqs) {
+        dbPending = dbReqs.map(r => {
+          try {
+            const parsed = JSON.parse(r.Reason || "{}");
+            const targetId = parsed.targetId || parsed.entityId || parsed.id;
+            return {
+              id: r.Id,
+              targetId,
+              type: parsed.type || "USER_REGISTRATION",
+              reason: parsed.type === "EVENT_DELETION" ? `Event Deletion Request: "${parsed.details?.title || parsed.name || 'Event'}" (by ${parsed.requestedBy || 'Organizer'})` :
+                      parsed.type === "VENUE_DELETION" ? `Venue Deletion Request: "${parsed.details?.name || parsed.name || 'Venue'}" (by ${parsed.requestedBy || 'Vendor'})` :
+                      `Account Verification: ${parsed.name || 'User'} (${parsed.role || 'Organizer'})`,
+              status: "PendingApproval",
+              createdAt: r.CreatedAt || new Date().toISOString(),
+              isLocal: true,
+              rawItem: {
+                id: r.Id,
+                targetId,
+                type: parsed.type || "USER_REGISTRATION",
+                name: parsed.name,
+                email: parsed.email || parsed.applicantEmail,
+                role: parsed.role,
+                details: parsed.details || parsed,
+                requestedBy: parsed.requestedBy
+              }
+            };
+          } catch {
+            return null;
+          }
+        }).filter(Boolean);
+      }
+    } catch {}
+
+    try {
+      const d = await api.approvalQueue().catch(() => []);
+      const apiItems = Array.isArray(d) ? d : d.items || [];
       
-      .catch(() => {
-        const formattedLocal = localPending.map(lp => ({
-          id: lp.id,
-          reason: lp.type === "EVENT_DELETION" ? `Event Deletion Request: "${lp.details?.title || lp.name}" (by ${lp.requestedBy})` :
-                  lp.type === "VENUE_DELETION" ? `Venue Deletion Request: "${lp.details?.name || lp.name}" (by ${lp.requestedBy})` :
-                  `Account Verification: ${lp.name} (${lp.role})`,
-          status: lp.status || "PendingApproval",
-          createdAt: lp.submittedAt || new Date().toISOString(),
-          isLocal: true,
-          rawItem: lp
-        }));
-        
-        setQueue(formattedLocal);
-      })
-      .finally(() => setLoading(false));
+      const formattedLocal = localPending.map(lp => ({
+        id: lp.id,
+        targetId: lp.targetId || lp.details?.targetId || lp.id,
+        reason: lp.type === "EVENT_DELETION" ? `Event Deletion Request: "${lp.details?.title || lp.name}" (by ${lp.requestedBy})` :
+                lp.type === "VENUE_DELETION" ? `Venue Deletion Request: "${lp.details?.name || lp.name}" (by ${lp.requestedBy})` :
+                `Account Verification: ${lp.name} (${lp.role})`,
+        status: lp.status || "PendingApproval",
+        createdAt: lp.submittedAt || new Date().toISOString(),
+        isLocal: true,
+        rawItem: lp
+      }));
+
+      const combined = [...dbPending];
+      formattedLocal.forEach(fl => {
+        if (!combined.some(c => c.id === fl.id || (fl.targetId && c.targetId === fl.targetId))) {
+          combined.push(fl);
+        }
+      });
+      setQueue([...combined, ...apiItems]);
+    } catch {
+      setQueue(dbPending);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    window.addEventListener("storage", load);
+    return () => window.removeEventListener("storage", load);
+  }, []);
 
   async function decide(id, approve) {
     setDec(id);
@@ -94,76 +134,77 @@ export default function ApprovalQueue() {
       const target = queue.find(q => q.id === id);
       if (target?.isLocal && target.rawItem) {
         const lp = target.rawItem;
+        const targetId = lp.targetId || lp.details?.targetId || lp.details?.id || lp.id;
         if (lp.type === "EVENT_DELETION") {
           if (approve) {
-            api.adminDeleteEvent(lp.targetId).catch(() => {});
+            api.adminDeleteEvent(targetId).catch(() => {});
 
             // Delete dependent records first to avoid foreign key violations
-            try { await supabase.from("TicketTypes").delete().eq("EventId", lp.targetId); } catch {}
-            try { await supabase.from("Registrations").delete().eq("EventId", lp.targetId); } catch {}
-            try { await supabase.from("VendorBookings").delete().eq("EventId", lp.targetId); } catch {}
-            try { await supabase.from("Expenses").delete().eq("EventId", lp.targetId); } catch {}
+            try { await supabase.from("TicketTypes").delete().eq("EventId", targetId); } catch {}
+            try { await supabase.from("Registrations").delete().eq("EventId", targetId); } catch {}
+            try { await supabase.from("VendorBookings").delete().eq("EventId", targetId); } catch {}
+            try { await supabase.from("Expenses").delete().eq("EventId", targetId); } catch {}
 
             try {
-              const { error: delErr } = await supabase.from("Events").delete().eq("Id", lp.targetId);
+              const { error: delErr } = await supabase.from("Events").delete().eq("Id", targetId);
               if (delErr) {
-                await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", lp.targetId);
+                await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", targetId);
               }
             } catch {
-              await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", lp.targetId).catch(() => {});
+              await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", targetId).catch(() => {});
             }
             try {
               const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
-              localStorage.setItem("ef_events", JSON.stringify(saved.filter(e => e.id !== lp.targetId)));
+              localStorage.setItem("ef_events", JSON.stringify(saved.filter(e => e.id !== targetId && e.Id !== targetId && String(e.id || e.Id).toLowerCase() !== String(targetId).toLowerCase())));
             } catch {}
           } else {
             try {
-              await supabase.from("Events").update({ Status: "Published" }).eq("Id", lp.targetId);
+              await supabase.from("Events").update({ Status: "Published" }).eq("Id", targetId);
             } catch {}
             try {
               const saved = JSON.parse(localStorage.getItem("ef_events") || "[]");
-              localStorage.setItem("ef_events", JSON.stringify(saved.map(e => e.id === lp.targetId ? { ...e, status: "Published", deletionPending: false } : e)));
+              localStorage.setItem("ef_events", JSON.stringify(saved.map(e => (e.id === targetId || e.Id === targetId || String(e.id || e.Id).toLowerCase() === String(targetId).toLowerCase()) ? { ...e, status: "Published", deletionPending: false } : e)));
             } catch {}
           }
         } else if (lp.type === "VENUE_DELETION") {
           if (approve) {
-            api.adminDeleteVenue(lp.targetId).catch(() => {});
+            api.adminDeleteVenue(targetId).catch(() => {});
 
             // 1. Delete dependent bookings in Supabase to avoid FK constraints
             try {
-              await supabase.from("VendorBookings").delete().eq("VenueId", lp.targetId);
+              await supabase.from("VendorBookings").delete().eq("VenueId", targetId);
             } catch {}
 
             // 2. Delete or soft-deactivate venue in Supabase
             try {
-              const { error: delErr } = await supabase.from("Venues").delete().eq("Id", lp.targetId);
+              const { error: delErr } = await supabase.from("Venues").delete().eq("Id", targetId);
               if (delErr) {
-                await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", lp.targetId);
+                await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", targetId);
               }
             } catch {
-              await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", lp.targetId).catch(() => {});
+              await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", targetId).catch(() => {});
             }
 
             // 3. Remove from all local caches
             try {
               const savedReg = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-              localStorage.setItem("ef_registered_venues", JSON.stringify(savedReg.filter(v => v.id !== lp.targetId)));
+              localStorage.setItem("ef_registered_venues", JSON.stringify(savedReg.filter(v => v.id !== targetId && v.Id !== targetId && String(v.id || v.Id).toLowerCase() !== String(targetId).toLowerCase())));
             } catch {}
             try {
               const savedVen = JSON.parse(localStorage.getItem("ef_venues") || "[]");
-              localStorage.setItem("ef_venues", JSON.stringify(savedVen.filter(v => v.id !== lp.targetId)));
+              localStorage.setItem("ef_venues", JSON.stringify(savedVen.filter(v => v.id !== targetId && v.Id !== targetId && String(v.id || v.Id).toLowerCase() !== String(targetId).toLowerCase())));
             } catch {}
           } else {
             try {
-              await supabase.from("Venues").update({ IsPendingDeletion: false, IsActive: true }).eq("Id", lp.targetId);
+              await supabase.from("Venues").update({ IsPendingDeletion: false, IsActive: true }).eq("Id", targetId);
             } catch {}
             try {
               const saved = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-              localStorage.setItem("ef_registered_venues", JSON.stringify(saved.map(v => v.id === lp.targetId ? { ...v, isDeletionPending: false, status: "Active" } : v)));
+              localStorage.setItem("ef_registered_venues", JSON.stringify(saved.map(v => (v.id === targetId || v.Id === targetId || String(v.id || v.Id).toLowerCase() === String(targetId).toLowerCase()) ? { ...v, isDeletionPending: false, status: "Active", isActive: true } : v)));
             } catch {}
             try {
               const savedVen = JSON.parse(localStorage.getItem("ef_venues") || "[]");
-              localStorage.setItem("ef_venues", JSON.stringify(savedVen.map(v => v.id === lp.targetId ? { ...v, isDeletionPending: false, isActive: true } : v)));
+              localStorage.setItem("ef_venues", JSON.stringify(savedVen.map(v => (v.id === targetId || v.Id === targetId || String(v.id || v.Id).toLowerCase() === String(targetId).toLowerCase()) ? { ...v, isDeletionPending: false, isActive: true } : v)));
             } catch {}
           }
         } else if (approve) {
@@ -188,16 +229,17 @@ export default function ApprovalQueue() {
         }
 
         // Sync Supabase ApprovalRequests table if matching row exists
-        if (lp.id) {
+        const reqId = lp.id || id;
+        if (reqId) {
           try {
-            await supabase.from("ApprovalRequests").update({ Status: approve ? "Approved" : "Rejected", ResolvedAt: new Date().toISOString() }).eq("Id", lp.id);
+            await supabase.from("ApprovalRequests").update({ Status: approve ? "Approved" : "Rejected", ResolvedAt: new Date().toISOString() }).eq("Id", reqId);
           } catch {}
         }
         
         // Remove from ef_pending_approvals
         try {
           const allPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-          localStorage.setItem("ef_pending_approvals", JSON.stringify(allPending.filter(p => p.id !== id && (!lp.email || p.email?.toLowerCase() !== lp.email?.toLowerCase()))));
+          localStorage.setItem("ef_pending_approvals", JSON.stringify(allPending.filter(p => p.id !== id && (p.targetId || p.details?.targetId) !== targetId && (!lp.email || p.email?.toLowerCase() !== lp.email?.toLowerCase()))));
           window.dispatchEvent(new Event("storage"));
         } catch {}
       } else {

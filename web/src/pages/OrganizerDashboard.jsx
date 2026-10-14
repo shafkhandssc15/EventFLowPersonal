@@ -382,6 +382,12 @@ export default function OrganizerDashboard() {
           const dbList = (dbReqs || []).map(r => {
             try {
               const parsed = JSON.parse(r.Reason || "{}");
+              if (parsed.type === "EVENT_DELETION" || parsed.type === "VENUE_DELETION" || parsed.type === "USER_REGISTRATION") {
+                return null;
+              }
+              if (!parsed.bookingRef && !parsed.passCount && !parsed.tierName && !parsed.bankSlipUrl) {
+                return null;
+              }
               const status = r.Status === "Approved" ? "Confirmed" : (r.Status === "Rejected" ? "Rejected" : "PendingApproval");
               return { ...parsed, dbId: r.Id, status,
                 rejectionReason: r.Status === "Rejected" ? (parsed.rejectionReason || "Slip rejected by organizer") : null };
@@ -418,6 +424,12 @@ export default function OrganizerDashboard() {
         dbBookings = dbReqs.map(r => {
           try {
             const parsed = JSON.parse(r.Reason || "{}");
+            if (parsed.type === "EVENT_DELETION" || parsed.type === "VENUE_DELETION" || parsed.type === "USER_REGISTRATION") {
+              return null;
+            }
+            if (!parsed.bookingRef && !parsed.passCount && !parsed.tierName && !parsed.bankSlipUrl) {
+              return null;
+            }
             const status = r.Status === "Approved" ? "Confirmed" : (r.Status === "Rejected" ? "Rejected" : "PendingApproval");
             return {
               ...parsed,
@@ -1027,7 +1039,7 @@ export default function OrganizerDashboard() {
   }
 
   async function requestDeleteEvent(id) {
-    const targetEvent = events.find(e => e.id === id);
+    const targetEvent = events.find(e => e.id === id || e.Id === id);
     if (!isEventCreator(targetEvent, user)) {
       setError(`Permission denied: You can only delete events that you have created. "${targetEvent?.title || 'This event'}" belongs to ${targetEvent?.organizerName || 'another organizer'}.`);
       return;
@@ -1046,13 +1058,14 @@ export default function OrganizerDashboard() {
       }
 
       // 2. Update event status in state & localStorage
-      const updatedEvents = events.map(e => e.id === id ? { ...e, status: "Deletion Requested", deletionPending: true } : e);
+      const updatedEvents = events.map(e => (e.id === id || e.Id === id) ? { ...e, status: "Deletion Requested", deletionPending: true } : e);
       if (typeof setEvents === "function") setEvents(updatedEvents);
       localStorage.setItem("ef_events", JSON.stringify(updatedEvents));
 
+      const approvalId = crypto.randomUUID();
       // 3. Add deletion approval request to ef_pending_approvals queue for Admin notification & action
       const pendingApprovalItem = {
-        id: `del-ev-${Date.now()}`,
+        id: approvalId,
         type: "EVENT_DELETION",
         targetId: id,
         name: targetEvent?.title || "Event Deletion",
@@ -1064,6 +1077,7 @@ export default function OrganizerDashboard() {
         status: "PendingAdminApproval",
         submittedAt: new Date().toISOString(),
         details: {
+          targetId: id,
           title: targetEvent?.title,
           category: targetEvent?.category || "Technology",
           location: targetEvent?.location || "Sri Lanka",
@@ -1075,13 +1089,9 @@ export default function OrganizerDashboard() {
       // 4. Also insert into Supabase ApprovalRequests table so Admin sees it in live DB
       try {
         await supabase.from("ApprovalRequests").insert({
-          Id: pendingApprovalItem.id,
-          Type: "EVENT_DELETION",
-          EntityId: id,
-          EntityName: targetEvent?.title || "Event Deletion",
-          Role: "Organizer",
+          Id: approvalId,
           Status: "Pending",
-          Reason: JSON.stringify(pendingApprovalItem.details),
+          Reason: JSON.stringify(pendingApprovalItem),
           CreatedAt: new Date().toISOString()
         });
       } catch (arErr) {
@@ -1089,7 +1099,7 @@ export default function OrganizerDashboard() {
       }
 
       const existingApprovals = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
-      const updatedApprovals = [pendingApprovalItem, ...existingApprovals.filter(a => a.targetId !== id)];
+      const updatedApprovals = [pendingApprovalItem, ...existingApprovals.filter(a => a.targetId !== id && a.details?.targetId !== id)];
       localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedApprovals));
       window.dispatchEvent(new Event("storage"));
 

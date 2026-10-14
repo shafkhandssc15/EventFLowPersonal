@@ -118,17 +118,20 @@ export default function AdminDashboard() {
           .map(r => {
             try {
               const parsed = JSON.parse(r.Reason || "{}");
+              const targetId = parsed.targetId || parsed.entityId || parsed.id || r.EntityId;
               return {
                 id: r.Id,
-                name: parsed.name || r.EntityName || "Request",
+                targetId: targetId,
+                name: parsed.name || parsed.details?.name || parsed.details?.title || r.EntityName || "Request",
                 email: parsed.email || parsed.applicantEmail || "",
                 role: parsed.role || r.Role || "Organizer",
                 nic: parsed.nic || "—",
                 contact: parsed.contact || "—",
-                type: r.Type || parsed.type || "USER_REGISTRATION",
+                type: parsed.type || r.Type || "USER_REGISTRATION",
+                requestedBy: parsed.requestedBy,
                 status: r.Status === "Pending" ? "PendingAdminApproval" : r.Status,
                 submittedAt: r.CreatedAt,
-                details: parsed
+                details: parsed.details || parsed
               };
             } catch {
               return null;
@@ -139,7 +142,8 @@ export default function AdminDashboard() {
         const activeOnly = mappedReqs.filter(r => r.status === "Pending" || r.status === "PendingAdminApproval");
         const combined = [...activeOnly];
         localPending.forEach(lp => {
-          if (!combined.some(c => c.id === lp.id || (lp.targetId && c.details?.targetId === lp.targetId))) {
+          const lpTarget = lp.targetId || lp.details?.targetId || lp.id;
+          if (!combined.some(c => c.id === lp.id || (lpTarget && (c.targetId === lpTarget || c.details?.targetId === lpTarget)))) {
             combined.push(lp);
           }
         });
@@ -311,31 +315,38 @@ export default function AdminDashboard() {
   }
 
   // Admin approves event deletion
+  // Admin approves event deletion
   async function handleApproveEventDeletion(req) {
     if (user?.role !== "Admin") return;
+    const targetId = req.targetId || req.details?.targetId || req.details?.id || req.details?.entityId;
+    if (!targetId) {
+      console.warn("handleApproveEventDeletion: targetId could not be resolved", req);
+      return;
+    }
+
     // 1. Remove event from backend API
-    api.adminDeleteEvent(req.targetId).catch(() => {});
+    api.adminDeleteEvent(targetId).catch(() => {});
 
     // 2. Remove dependent records in Supabase to avoid FK constraints
-    try { await supabase.from("TicketTypes").delete().eq("EventId", req.targetId); } catch {}
-    try { await supabase.from("Registrations").delete().eq("EventId", req.targetId); } catch {}
-    try { await supabase.from("VendorBookings").delete().eq("EventId", req.targetId); } catch {}
-    try { await supabase.from("Expenses").delete().eq("EventId", req.targetId); } catch {}
+    try { await supabase.from("TicketTypes").delete().eq("EventId", targetId); } catch {}
+    try { await supabase.from("Registrations").delete().eq("EventId", targetId); } catch {}
+    try { await supabase.from("VendorBookings").delete().eq("EventId", targetId); } catch {}
+    try { await supabase.from("Expenses").delete().eq("EventId", targetId); } catch {}
 
     // 3. Delete or soft-cancel event in Supabase
     try {
-      const { error: delErr } = await supabase.from("Events").delete().eq("Id", req.targetId);
+      const { error: delErr } = await supabase.from("Events").delete().eq("Id", targetId);
       if (delErr) {
-        await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", req.targetId);
+        await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", targetId);
       }
     } catch (sbErr) {
-      await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", req.targetId).catch(() => {});
+      await supabase.from("Events").update({ Status: "Cancelled" }).eq("Id", targetId).catch(() => {});
     }
 
     // 4. Clean up ef_events in localStorage
     try {
       const savedEvents = JSON.parse(localStorage.getItem("ef_events") || "[]");
-      const filtered = savedEvents.filter(e => e.id !== req.targetId);
+      const filtered = savedEvents.filter(e => e.id !== targetId && e.Id !== targetId && String(e.id || e.Id).toLowerCase() !== String(targetId).toLowerCase());
       localStorage.setItem("ef_events", JSON.stringify(filtered));
       setEventsCount(filtered.length);
     } catch {}
@@ -348,10 +359,12 @@ export default function AdminDashboard() {
     }
 
     // 6. Remove from pending approvals
-    const updatedPending = pendingApprovals.filter(p => p.id !== req.id);
+    const updatedPending = pendingApprovals.filter(p => p.id !== req.id && (p.targetId || p.details?.targetId) !== targetId);
     setPendingApprovals(updatedPending);
     localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedPending));
     window.dispatchEvent(new Event("storage"));
+
+    await syncWithSupabase();
 
     setPromotionNotice(`✓ Event "${req.details?.title || req.name}" deletion APPROVED by Admin. Event permanently removed.`);
   }
@@ -359,13 +372,16 @@ export default function AdminDashboard() {
   // Admin rejects event deletion (event stays active/published)
   async function handleRejectEventDeletion(req) {
     if (user?.role !== "Admin") return;
+    const targetId = req.targetId || req.details?.targetId || req.details?.id || req.details?.entityId;
+    if (!targetId) return;
+
     try {
-      await supabase.from("Events").update({ Status: "Published" }).eq("Id", req.targetId);
+      await supabase.from("Events").update({ Status: "Published" }).eq("Id", targetId);
     } catch (sbErr) {}
 
     try {
       const savedEvents = JSON.parse(localStorage.getItem("ef_events") || "[]");
-      const restored = savedEvents.map(e => e.id === req.targetId ? { ...e, status: "Published", deletionPending: false } : e);
+      const restored = savedEvents.map(e => (e.id === targetId || e.Id === targetId || String(e.id || e.Id).toLowerCase() === String(targetId).toLowerCase()) ? { ...e, status: "Published", deletionPending: false } : e);
       localStorage.setItem("ef_events", JSON.stringify(restored));
     } catch {}
 
@@ -375,10 +391,12 @@ export default function AdminDashboard() {
       } catch {}
     }
 
-    const updatedPending = pendingApprovals.filter(p => p.id !== req.id);
+    const updatedPending = pendingApprovals.filter(p => p.id !== req.id && (p.targetId || p.details?.targetId) !== targetId);
     setPendingApprovals(updatedPending);
     localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedPending));
     window.dispatchEvent(new Event("storage"));
+
+    await syncWithSupabase();
 
     setPromotionNotice(`Event deletion request for "${req.details?.title || req.name}" REJECTED. Event remains published.`);
   }
@@ -386,27 +404,33 @@ export default function AdminDashboard() {
   // Admin approves venue deletion
   async function handleApproveVenueDeletion(req) {
     if (user?.role !== "Admin") return;
-    api.adminDeleteVenue(req.targetId).catch(() => {});
+    const targetId = req.targetId || req.details?.targetId || req.details?.id || req.details?.entityId;
+    if (!targetId) {
+      console.warn("handleApproveVenueDeletion: targetId could not be resolved", req);
+      return;
+    }
+
+    api.adminDeleteVenue(targetId).catch(() => {});
 
     // 1. Delete dependent bookings in Supabase
     try {
-      await supabase.from("VendorBookings").delete().eq("VenueId", req.targetId);
+      await supabase.from("VendorBookings").delete().eq("VenueId", targetId);
     } catch {}
 
     // 2. Delete or soft-deactivate venue in Supabase
     try {
-      const { error: delErr } = await supabase.from("Venues").delete().eq("Id", req.targetId);
+      const { error: delErr } = await supabase.from("Venues").delete().eq("Id", targetId);
       if (delErr) {
-        await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", req.targetId);
+        await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", targetId);
       }
     } catch (sbErr) {
-      await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", req.targetId).catch(() => {});
+      await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", targetId).catch(() => {});
     }
 
     // 3. Remove from ef_registered_venues
     try {
       const savedVenues = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-      const filtered = savedVenues.filter(v => v.id !== req.targetId);
+      const filtered = savedVenues.filter(v => v.id !== targetId && v.Id !== targetId && String(v.id || v.Id).toLowerCase() !== String(targetId).toLowerCase());
       localStorage.setItem("ef_registered_venues", JSON.stringify(filtered));
       setVenuesCount(filtered.length);
     } catch {}
@@ -414,7 +438,7 @@ export default function AdminDashboard() {
     // 4. Remove from ef_venues
     try {
       const savedVen = JSON.parse(localStorage.getItem("ef_venues") || "[]");
-      const filteredVen = savedVen.filter(v => v.id !== req.targetId);
+      const filteredVen = savedVen.filter(v => v.id !== targetId && v.Id !== targetId && String(v.id || v.Id).toLowerCase() !== String(targetId).toLowerCase());
       localStorage.setItem("ef_venues", JSON.stringify(filteredVen));
     } catch {}
 
@@ -425,10 +449,12 @@ export default function AdminDashboard() {
       } catch {}
     }
 
-    const updatedPending = pendingApprovals.filter(p => p.id !== req.id);
+    const updatedPending = pendingApprovals.filter(p => p.id !== req.id && (p.targetId || p.details?.targetId) !== targetId);
     setPendingApprovals(updatedPending);
     localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedPending));
     window.dispatchEvent(new Event("storage"));
+
+    await syncWithSupabase();
 
     setPromotionNotice(`✓ Venue "${req.details?.name || req.name}" deletion APPROVED by Admin. Removed from database.`);
   }
@@ -436,21 +462,24 @@ export default function AdminDashboard() {
   // Admin rejects venue deletion (venue stays active)
   async function handleRejectVenueDeletion(req) {
     if (user?.role !== "Admin") return;
+    const targetId = req.targetId || req.details?.targetId || req.details?.id || req.details?.entityId;
+    if (!targetId) return;
+
     try {
-      await supabase.from("Venues").update({ IsPendingDeletion: false, IsActive: true }).eq("Id", req.targetId);
+      await supabase.from("Venues").update({ IsPendingDeletion: false, IsActive: true }).eq("Id", targetId);
     } catch (sbErr) {
       console.warn("Supabase Venues unmark warning:", sbErr);
     }
 
     try {
       const savedVenues = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
-      const restored = savedVenues.map(v => v.id === req.targetId ? { ...v, isDeletionPending: false, status: "Active" } : v);
+      const restored = savedVenues.map(v => (v.id === targetId || v.Id === targetId || String(v.id || v.Id).toLowerCase() === String(targetId).toLowerCase()) ? { ...v, isDeletionPending: false, status: "Active", isActive: true } : v);
       localStorage.setItem("ef_registered_venues", JSON.stringify(restored));
     } catch {}
 
     try {
       const savedVen = JSON.parse(localStorage.getItem("ef_venues") || "[]");
-      const restoredVen = savedVen.map(v => v.id === req.targetId ? { ...v, isDeletionPending: false, isActive: true } : v);
+      const restoredVen = savedVen.map(v => (v.id === targetId || v.Id === targetId || String(v.id || v.Id).toLowerCase() === String(targetId).toLowerCase()) ? { ...v, isDeletionPending: false, status: "Active", isActive: true } : v);
       localStorage.setItem("ef_venues", JSON.stringify(restoredVen));
     } catch {}
 
@@ -460,10 +489,12 @@ export default function AdminDashboard() {
       } catch {}
     }
 
-    const updatedPending = pendingApprovals.filter(p => p.id !== req.id);
+    const updatedPending = pendingApprovals.filter(p => p.id !== req.id && (p.targetId || p.details?.targetId) !== targetId);
     setPendingApprovals(updatedPending);
     localStorage.setItem("ef_pending_approvals", JSON.stringify(updatedPending));
     window.dispatchEvent(new Event("storage"));
+
+    await syncWithSupabase();
 
     setPromotionNotice(`Venue deletion request for "${req.details?.name || req.name}" REJECTED. Venue remains active.`);
   }
