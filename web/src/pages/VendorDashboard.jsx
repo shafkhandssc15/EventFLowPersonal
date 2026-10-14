@@ -115,19 +115,71 @@ export default function VendorDashboard() {
     setLoading(true);
     setVenues([]);
 
-    // Direct fetch from Supabase Venues table
+    // Direct fetch from Supabase Venues table & ApprovalRequests
     supabase
       .from("Venues")
       .select("*")
       .order("CreatedAt", { ascending: false })
-      .then(({ data: dbVenues, error: vErr }) => {
+      .then(async ({ data: dbVenues, error: vErr }) => {
         if (!vErr && dbVenues) {
-          const activeOnly = dbVenues.filter(row => row.IsActive !== false && row.isActive !== false);
+          // Check approval statuses for venue deletions
+          const approvedVenueIds = new Set();
+          const pendingVenueIds = new Set();
+
+          try {
+            const { data: dbApprovals } = await supabase
+              .from("ApprovalRequests")
+              .select("*")
+              .order("CreatedAt", { ascending: false });
+
+            if (dbApprovals) {
+              dbApprovals.forEach(r => {
+                try {
+                  const parsed = JSON.parse(r.Reason || "{}");
+                  if (parsed.type === "VENUE_DELETION") {
+                    const tid = parsed.targetId || parsed.details?.targetId || parsed.id;
+                    if (tid) {
+                      const cleanTid = String(tid).toLowerCase();
+                      if (r.Status === "Approved") {
+                        approvedVenueIds.add(cleanTid);
+                      } else if (r.Status === "Pending") {
+                        pendingVenueIds.add(cleanTid);
+                      }
+                    }
+                  }
+                } catch {}
+              });
+            }
+          } catch {}
+
+          // Also merge local pending approvals
+          try {
+            const localPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
+            localPending.forEach(p => {
+              if (p.type === "VENUE_DELETION") {
+                const tid = p.targetId || p.details?.targetId;
+                if (tid) {
+                  const cleanTid = String(tid).toLowerCase();
+                  if (p.status === "Approved") approvedVenueIds.add(cleanTid);
+                  else if (p.status === "Pending" || p.status === "PendingAdminApproval") pendingVenueIds.add(cleanTid);
+                }
+              }
+            });
+          } catch {}
+
+          const activeOnly = dbVenues.filter(row => {
+            const rowId = String(row.Id || row.id || "").toLowerCase();
+            if (approvedVenueIds.has(rowId)) return false;
+            return row.IsActive !== false && row.isActive !== false;
+          });
+
           const mapped = activeOnly.map(row => {
             const venueName = row.Name || row.name || "";
             const venueLoc = row.Location || row.location || "";
             const venueCity = row.City || row.city || "";
             const coords = getVenueCoordinates(venueName, venueLoc, venueCity);
+            const rowId = String(row.Id || row.id || "").toLowerCase();
+            const isPending = !approvedVenueIds.has(rowId) && (pendingVenueIds.has(rowId) || Boolean(row.IsPendingDeletion ?? row.isPendingDeletion ?? false));
 
             return {
               id: row.Id || row.id,
@@ -144,7 +196,7 @@ export default function VendorDashboard() {
               amenities: row.Amenities || row.amenities || ["WiFi", "Parking", "AC"],
               description: row.Description || row.description || "",
               isActive: row.IsActive ?? row.isActive ?? true,
-              isDeletionPending: Boolean(row.IsPendingDeletion ?? row.isPendingDeletion ?? false)
+              isDeletionPending: isPending
             };
           });
 
@@ -153,7 +205,7 @@ export default function VendorDashboard() {
         } else {
           try {
             const cached = JSON.parse(localStorage.getItem("ef_registered_venues") || localStorage.getItem("ef_venues") || "[]");
-            setVenues(cached.filter(v => v.isActive !== false));
+            setVenues(cached.filter(v => v.isActive !== false && v.name !== "Test"));
           } catch {}
         }
       })
@@ -161,7 +213,7 @@ export default function VendorDashboard() {
         console.warn("Supabase Venues load error:", err);
         try {
           const cached = JSON.parse(localStorage.getItem("ef_registered_venues") || localStorage.getItem("ef_venues") || "[]");
-          setVenues(cached.filter(v => v.isActive !== false));
+          setVenues(cached.filter(v => v.isActive !== false && v.name !== "Test"));
         } catch {}
       });
 
@@ -187,10 +239,11 @@ export default function VendorDashboard() {
     loadAll();
     window.addEventListener("storage", loadAll);
 
-    // Live Supabase sync for Venues
+    // Live Supabase sync for Venues and ApprovalRequests
     const channel = supabase
       .channel("vendor-venues-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "Venues" }, () => loadAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "ApprovalRequests" }, () => loadAll())
       .subscribe();
 
     return () => {
@@ -469,10 +522,48 @@ export default function VendorDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  async function handleAdminDirectApproveVenueDeletion(id, name) {
+    if (user?.role !== "Admin") return;
+    if (!window.confirm(`Admin Action: Approve and permanently delete venue "${name || 'this venue'}" from the platform and Supabase database?`)) return;
+
+    try {
+      api.adminDeleteVenue(id).catch(() => {});
+      try { await supabase.from("VendorBookings").delete().eq("VenueId", id); } catch {}
+      try { await supabase.from("Venues").update({ IsActive: false, IsPendingDeletion: false }).eq("Id", id); } catch {}
+      try { await supabase.from("Venues").delete().eq("Id", id); } catch {}
+      try { await supabase.from("ApprovalRequests").update({ Status: "Approved", ResolvedAt: new Date().toISOString() }).ilike("Reason", `%${id}%`); } catch {}
+
+      setVenues(prev => prev.filter(v => v.id !== id && v.Id !== id && String(v.id || v.Id).toLowerCase() !== String(id).toLowerCase()));
+
+      try {
+        const savedReg = JSON.parse(localStorage.getItem("ef_registered_venues") || "[]");
+        localStorage.setItem("ef_registered_venues", JSON.stringify(savedReg.filter(v => v.id !== id && v.Id !== id && String(v.id || v.Id).toLowerCase() !== String(id).toLowerCase())));
+      } catch {}
+      try {
+        const savedVen = JSON.parse(localStorage.getItem("ef_venues") || "[]");
+        localStorage.setItem("ef_venues", JSON.stringify(savedVen.filter(v => v.id !== id && v.Id !== id && String(v.id || v.Id).toLowerCase() !== String(id).toLowerCase())));
+      } catch {}
+      try {
+        const savedPending = JSON.parse(localStorage.getItem("ef_pending_approvals") || "[]");
+        localStorage.setItem("ef_pending_approvals", JSON.stringify(savedPending.filter(p => (p.targetId || p.details?.targetId || p.id) !== id)));
+      } catch {}
+
+      window.dispatchEvent(new Event("storage"));
+      setSuccess(`Venue "${name}" deletion APPROVED by Admin. Removed from database.`);
+    } catch (err) {
+      setError("Failed to delete venue: " + err.message);
+    }
+  }
+
   async function requestDeleteVenue(id) {
     const targetVenue = venues.find(v => v.id === id || v.Id === id);
     if (!isVenueManager(targetVenue, user)) {
       setError(`Permission denied: Only the Venue Manager responsible for "${targetVenue?.name}" can request its deletion.`);
+      return;
+    }
+
+    if (user?.role === "Admin") {
+      await handleAdminDirectApproveVenueDeletion(id, targetVenue?.name);
       return;
     }
 
@@ -1065,9 +1156,21 @@ export default function VendorDashboard() {
                                 Edit Venue
                               </button>
                               {isDeletionPending ? (
-                                <span className="badge badge-amber" style={{ fontSize: 10 }} title="Deletion request awaiting Platform Admin approval">
-                                  Deletion Pending Approval
-                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <span className="badge badge-amber" style={{ fontSize: 10 }} title="Deletion request awaiting Platform Admin approval">
+                                    Deletion Pending Approval
+                                  </span>
+                                  {user?.role === "Admin" && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm"
+                                      style={{ background: "#ef4444", borderColor: "#ef4444", color: "#ffffff", fontSize: 10, padding: "2px 8px" }}
+                                      onClick={() => handleAdminDirectApproveVenueDeletion(v.id, v.name)}
+                                    >
+                                      Approve Deletion
+                                    </button>
+                                  )}
+                                </div>
                               ) : (
                                 <button className="btn btn-ghost btn-sm" onClick={() => requestDeleteVenue(v.id)} style={{ color: "#ef4444" }}>
                                   Request Delete

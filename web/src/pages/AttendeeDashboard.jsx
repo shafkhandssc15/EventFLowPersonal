@@ -56,19 +56,37 @@ export default function AttendeeDashboard() {
                 (cleanUserNic && reqNic && (reqNic.includes(cleanUserNic) || cleanUserNic.includes(reqNic)));
 
               if (isMine) {
-                const currentStatus = (req.Status === "Approved" || parsed.status === "Confirmed")
-                  ? "Confirmed"
-                  : ((req.Status === "Rejected" || parsed.status === "Rejected") ? "Rejected" : "PendingApproval");
+                // Also check if local master bookings marked this confirmed
+                let isConfirmedLocally = false;
+                let isRejectedLocally = false;
+                try {
+                  const master = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
+                  const mb = master.find(b => b.bookingRef === parsed.bookingRef);
+                  if (mb) {
+                    if (mb.status === "Confirmed" || mb.paymentStatus === "Confirmed") isConfirmedLocally = true;
+                    if (mb.status === "Rejected" || mb.paymentStatus === "Rejected") isRejectedLocally = true;
+                  }
+                } catch {}
 
-                const updatedPasses = (parsed.passes || []).map(p => ({
-                  ...p,
-                  approvalRequestId: req.Id,
-                  status: currentStatus,
-                  paymentStatus: currentStatus,
-                  rejectionReason: (req.Status === "Rejected" || parsed.status === "Rejected")
-                    ? (parsed.rejectionReason || "Payment slip rejected by organizer")
-                    : null
-                }));
+                const currentStatus = (req.Status === "Approved" || parsed.status === "Confirmed" || isConfirmedLocally)
+                  ? "Confirmed"
+                  : ((req.Status === "Rejected" || parsed.status === "Rejected" || isRejectedLocally) ? "Rejected" : "PendingApproval");
+
+                const updatedPasses = (parsed.passes || []).map((p, pIdx) => {
+                  const shortEv = String(parsed.eventId || "EV").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase();
+                  const shortBk = String(parsed.bookingRef || "BK").replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase();
+                  const uniqueQr = p.qrCode || `EVENTFLOW-LK-${shortEv}-${shortBk}-0${pIdx + 1}`;
+                  return {
+                    ...p,
+                    approvalRequestId: req.Id,
+                    qrCode: uniqueQr,
+                    status: currentStatus,
+                    paymentStatus: currentStatus,
+                    rejectionReason: (req.Status === "Rejected" || parsed.status === "Rejected" || isRejectedLocally)
+                      ? (parsed.rejectionReason || "Payment slip rejected by organizer")
+                      : null
+                  };
+                });
 
                 mySupabasePasses.push(...updatedPasses);
               }
@@ -84,6 +102,7 @@ export default function AttendeeDashboard() {
     }
 
     loadAttendeePasses();
+    window.addEventListener("storage", loadAttendeePasses);
 
     // Subscribe to real-time changes on ApprovalRequests, Registrations, and Tickets so organizer approvals immediately reflect
     const channel = supabase
@@ -100,6 +119,7 @@ export default function AttendeeDashboard() {
       .subscribe();
 
     return () => {
+      window.removeEventListener("storage", loadAttendeePasses);
       supabase.removeChannel(channel);
     };
   }, [user]);
@@ -127,19 +147,37 @@ export default function AttendeeDashboard() {
             (cleanUserNic && reqNic && (reqNic.includes(cleanUserNic) || cleanUserNic.includes(reqNic)));
 
           if (!isMine) return [];
-          const status = (req.Status === "Approved" || parsed.status === "Confirmed")
-            ? "Confirmed"
-            : ((req.Status === "Rejected" || parsed.status === "Rejected") ? "Rejected" : "PendingApproval");
 
-          return (parsed.passes || []).map(pass => ({
-            ...pass,
-            approvalRequestId: req.Id,
-            status,
-            paymentStatus: status,
-            rejectionReason: (req.Status === "Rejected" || parsed.status === "Rejected")
-              ? (parsed.rejectionReason || "Payment slip rejected by organizer")
-              : null
-          }));
+          let isConfirmedLocally = false;
+          let isRejectedLocally = false;
+          try {
+            const master = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
+            const mb = master.find(b => b.bookingRef === parsed.bookingRef);
+            if (mb) {
+              if (mb.status === "Confirmed" || mb.paymentStatus === "Confirmed") isConfirmedLocally = true;
+              if (mb.status === "Rejected" || mb.paymentStatus === "Rejected") isRejectedLocally = true;
+            }
+          } catch {}
+
+          const status = (req.Status === "Approved" || parsed.status === "Confirmed" || isConfirmedLocally)
+            ? "Confirmed"
+            : ((req.Status === "Rejected" || parsed.status === "Rejected" || isRejectedLocally) ? "Rejected" : "PendingApproval");
+
+          return (parsed.passes || []).map((pass, pIdx) => {
+            const shortEv = String(parsed.eventId || "EV").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase();
+            const shortBk = String(parsed.bookingRef || "BK").replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase();
+            const uniqueQr = pass.qrCode || `EVENTFLOW-LK-${shortEv}-${shortBk}-0${pIdx + 1}`;
+            return {
+              ...pass,
+              approvalRequestId: req.Id,
+              qrCode: uniqueQr,
+              status,
+              paymentStatus: status,
+              rejectionReason: (req.Status === "Rejected" || parsed.status === "Rejected" || isRejectedLocally)
+                ? (parsed.rejectionReason || "Payment slip rejected by organizer")
+                : null
+            };
+          });
         } catch { return []; }
       });
       setTickets(passes);

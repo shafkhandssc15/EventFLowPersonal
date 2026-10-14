@@ -3,7 +3,7 @@ import {
   IcMail, IcCheck, IcX, IcClock, IcCheckCircle, IcAlert,
   IcShield, IcUser, IcPaperclip, IcSend, IcImage, IcEye
 } from "./Icons.jsx";
-import { formatLKR } from "../api/supabase.js";
+import { supabase, formatLKR } from "../api/supabase.js";
 
 /**
  * Two-way interactive messaging drawer between Attendee and Organizer
@@ -90,41 +90,104 @@ export default function BookingChatDrawer({
     }
   }
 
-  // Update Booking Status in LocalStorage and sync
-  function updateBookingStatus(newStatus, updatedSlipUrl = null, reason = null) {
+  // Update Booking Status in LocalStorage, Supabase and sync
+  async function updateBookingStatus(newStatus, updatedSlipUrl = null, reason = null) {
     try {
-      // 1. Update attendee's tickets
-      const attendeeKey = `ef_tickets_${booking?.attendeeId}`;
-      const attendeeTickets = JSON.parse(localStorage.getItem(attendeeKey) || "[]");
-      const updatedTickets = attendeeTickets.map(tkt => {
-        if (tkt.bookingRef === booking?.bookingRef || tkt.eventId === booking?.eventId) {
-          return {
-            ...tkt,
-            paymentStatus: newStatus,
-            paymentSlipUrl: updatedSlipUrl || tkt.paymentSlipUrl,
-            rejectionReason: reason || (newStatus === "Confirmed" ? null : tkt.rejectionReason)
-          };
-        }
-        return tkt;
-      });
-      localStorage.setItem(attendeeKey, JSON.stringify(updatedTickets));
+      const now = new Date().toISOString();
+      const isConfirmed = newStatus === "Confirmed";
+      const isRejected = newStatus === "Rejected";
 
-      // 2. Update master bookings list
+      // 1. Prepare updated passes with unique scannable QR code
+      const updatedPasses = (booking?.passes || []).map((tkt, idx) => {
+        const shortEv = String(booking?.eventId || "EV").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase();
+        const shortBk = String(booking?.bookingRef || "BK").replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase();
+        const passQr = tkt.qrCode || `EVENTFLOW-LK-${shortEv}-${shortBk}-0${idx + 1}`;
+        return {
+          ...tkt,
+          status: newStatus,
+          paymentStatus: newStatus,
+          qrCode: passQr,
+          paymentSlipUrl: updatedSlipUrl || tkt.paymentSlipUrl,
+          rejectionReason: reason || (isConfirmed ? null : tkt.rejectionReason),
+          approvedAt: isConfirmed ? now : tkt.approvedAt,
+          approvedBy: isConfirmed ? (currentUser?.name || currentUser?.email || "Organizer") : tkt.approvedBy
+        };
+      });
+
+      // 2. Prepare updated booking object
+      const updatedBooking = {
+        ...booking,
+        status: newStatus,
+        paymentStatus: newStatus,
+        passes: updatedPasses,
+        paymentSlipUrl: updatedSlipUrl || booking?.paymentSlipUrl,
+        rejectionReason: reason || (isConfirmed ? null : booking?.rejectionReason),
+        approvedAt: isConfirmed ? now : booking?.approvedAt,
+        approvedBy: isConfirmed ? (currentUser?.name || currentUser?.email || "Organizer") : booking?.approvedBy
+      };
+
+      // 3. Write directly to Supabase ApprovalRequests table so Attendee sees it in real-time
+      try {
+        const sbStatus = isConfirmed ? "Approved" : (isRejected ? "Rejected" : "PendingOrganizerApproval");
+        if (booking?.dbId) {
+          await supabase
+            .from("ApprovalRequests")
+            .update({
+              Status: sbStatus,
+              ResolvedAt: (isConfirmed || isRejected) ? now : null,
+              Reason: JSON.stringify(updatedBooking)
+            })
+            .eq("Id", booking.dbId);
+        } else {
+          await supabase
+            .from("ApprovalRequests")
+            .update({
+              Status: sbStatus,
+              ResolvedAt: (isConfirmed || isRejected) ? now : null,
+              Reason: JSON.stringify(updatedBooking)
+            })
+            .ilike("Reason", `%${booking?.bookingRef}%`);
+        }
+      } catch (sbErr) {
+        console.warn("[BookingChatDrawer] Supabase update warning:", sbErr);
+      }
+
+      // 4. Update attendee's tickets in localStorage across multiple possible keys
+      const keysToUpdate = [
+        `ef_tickets_${booking?.attendeeId}`,
+        `ef_tickets_${currentUser?.id}`,
+        "ef_tickets_guest"
+      ];
+      keysToUpdate.forEach(k => {
+        try {
+          const tickets = JSON.parse(localStorage.getItem(k) || "[]");
+          const upd = tickets.map(tkt => {
+            if (tkt.bookingRef === booking?.bookingRef || tkt.eventId === booking?.eventId) {
+              return {
+                ...tkt,
+                status: newStatus,
+                paymentStatus: newStatus,
+                paymentSlipUrl: updatedSlipUrl || tkt.paymentSlipUrl,
+                rejectionReason: reason || (isConfirmed ? null : tkt.rejectionReason)
+              };
+            }
+            return tkt;
+          });
+          localStorage.setItem(k, JSON.stringify(upd));
+        } catch {}
+      });
+
+      // 5. Update master bookings list in localStorage
       const masterBookings = JSON.parse(localStorage.getItem("ef_master_bookings") || "[]");
       const updatedMaster = masterBookings.map(b => {
         if (b.bookingRef === booking?.bookingRef) {
-          return {
-            ...b,
-            status: newStatus,
-            paymentSlipUrl: updatedSlipUrl || b.paymentSlipUrl,
-            rejectionReason: reason || (newStatus === "Confirmed" ? null : b.rejectionReason)
-          };
+          return updatedBooking;
         }
         return b;
       });
       localStorage.setItem("ef_master_bookings", JSON.stringify(updatedMaster));
 
-      // Post status notification message in chat
+      // 6. Post status notification message in chat
       const statusNotice = {
         id: `msg-status-${Date.now()}`,
         bookingRef: booking?.bookingRef,
@@ -133,22 +196,19 @@ export default function BookingChatDrawer({
         senderRole: "System",
         isStatusAlert: true,
         statusType: newStatus,
-        text: newStatus === "Confirmed"
+        text: isConfirmed
           ? `🎉 Organizer ${currentUser?.name || ""} verified the payment slip! Booking ${booking?.bookingRef} is now APPROVED. Entrance QR passes are active.`
           : `⚠️ Payment slip was marked as REJECTED by organizer. Reason: "${reason || "Please check slip details."}". Attendee can reply or re-upload a clear slip below.`,
-        createdAt: new Date().toISOString()
+        createdAt: now
       };
       const updatedChat = [...messages, statusNotice];
       localStorage.setItem(bookingKey, JSON.stringify(updatedChat));
       setMessages(updatedChat);
 
+      window.dispatchEvent(new Event("storage"));
+
       if (onBookingUpdated) {
-        onBookingUpdated({
-          ...booking,
-          status: newStatus,
-          paymentSlipUrl: updatedSlipUrl || booking?.paymentSlipUrl,
-          rejectionReason: reason
-        });
+        onBookingUpdated(updatedBooking);
       }
     } catch (err) {
       console.error(err);
@@ -156,21 +216,19 @@ export default function BookingChatDrawer({
   }
 
   // Handle Organizer Approval
-  function handleApprove() {
+  async function handleApprove() {
     setBusy(true);
-    updateBookingStatus("Confirmed");
-    setTimeout(() => {
-      setBusy(false);
-    }, 400);
+    await updateBookingStatus("Confirmed");
+    setBusy(false);
   }
 
   // Handle Organizer Rejection with reason
-  function handleRejectSubmit(e) {
+  async function handleRejectSubmit(e) {
     e.preventDefault();
     if (!rejectionReason.trim()) return;
 
     setBusy(true);
-    updateBookingStatus("Rejected", null, rejectionReason.trim());
+    await updateBookingStatus("Rejected", null, rejectionReason.trim());
     setShowRejectModal(false);
     setRejectionReason("");
     setBusy(false);

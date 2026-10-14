@@ -147,6 +147,103 @@ export default function AdminDashboard() {
             combined.push(lp);
           }
         });
+
+        // Auto-detect venues that are pending deletion in Supabase Venues table but missing from approval requests
+        try {
+          const { data: pendingVenues } = await supabase
+            .from("Venues")
+            .select("*")
+            .eq("IsPendingDeletion", true)
+            .neq("IsActive", false);
+
+          if (pendingVenues && pendingVenues.length > 0) {
+            for (const pv of pendingVenues) {
+              const pvId = pv.Id || pv.id;
+              const cleanPvId = String(pvId).toLowerCase();
+              const alreadyInList = combined.some(c => 
+                String(c.targetId || c.details?.targetId || c.id).toLowerCase() === cleanPvId
+              );
+              if (!alreadyInList) {
+                const autoApprovalId = crypto.randomUUID();
+                const autoItem = {
+                  id: autoApprovalId,
+                  targetId: pvId,
+                  name: pv.Name || pv.name || "Venue Deletion",
+                  email: "vendor.eventflow@gmail.com",
+                  role: "VendorVenueManager",
+                  nic: "—",
+                  contact: "—",
+                  type: "VENUE_DELETION",
+                  requestedBy: "Venue Manager",
+                  status: "PendingAdminApproval",
+                  submittedAt: pv.CreatedAt || new Date().toISOString(),
+                  details: {
+                    targetId: pvId,
+                    name: pv.Name || pv.name,
+                    location: pv.Location || pv.location,
+                    city: pv.City || pv.city,
+                    capacity: pv.Capacity || pv.capacity
+                  }
+                };
+                combined.push(autoItem);
+                supabase.from("ApprovalRequests").insert({
+                  Id: autoApprovalId,
+                  Status: "Pending",
+                  Reason: JSON.stringify(autoItem),
+                  CreatedAt: new Date().toISOString()
+                }).catch(() => {});
+              }
+            }
+          }
+        } catch {}
+
+        // Auto-detect events that are pending deletion in Supabase Events table but missing from approval requests
+        try {
+          const { data: pendingEvents } = await supabase
+            .from("Events")
+            .select("*")
+            .eq("Status", "PendingDeletion");
+
+          if (pendingEvents && pendingEvents.length > 0) {
+            for (const pe of pendingEvents) {
+              const peId = pe.Id || pe.id;
+              const cleanPeId = String(peId).toLowerCase();
+              const alreadyInList = combined.some(c => 
+                String(c.targetId || c.details?.targetId || c.id).toLowerCase() === cleanPeId
+              );
+              if (!alreadyInList) {
+                const autoApprovalId = crypto.randomUUID();
+                const autoItem = {
+                  id: autoApprovalId,
+                  targetId: peId,
+                  name: pe.Title || pe.title || "Event Deletion",
+                  email: "organizer.eventflow@gmail.com",
+                  role: "Organizer",
+                  nic: "—",
+                  contact: "—",
+                  type: "EVENT_DELETION",
+                  requestedBy: "Event Organizer",
+                  status: "PendingAdminApproval",
+                  submittedAt: pe.CreatedAt || new Date().toISOString(),
+                  details: {
+                    targetId: peId,
+                    title: pe.Title || pe.title,
+                    category: pe.Category || pe.category,
+                    location: pe.Location || pe.location
+                  }
+                };
+                combined.push(autoItem);
+                supabase.from("ApprovalRequests").insert({
+                  Id: autoApprovalId,
+                  Status: "Pending",
+                  Reason: JSON.stringify(autoItem),
+                  CreatedAt: new Date().toISOString()
+                }).catch(() => {});
+              }
+            }
+          }
+        } catch {}
+
         setPendingApprovals(combined);
       } else if (localPending.length > 0) {
         setPendingApprovals(localPending);
@@ -448,6 +545,11 @@ export default function AdminDashboard() {
         await supabase.from("ApprovalRequests").update({ Status: "Approved", ResolvedAt: new Date().toISOString() }).eq("Id", req.id);
       } catch {}
     }
+    if (targetId) {
+      try {
+        await supabase.from("ApprovalRequests").update({ Status: "Approved", ResolvedAt: new Date().toISOString() }).ilike("Reason", `%${targetId}%`);
+      } catch {}
+    }
 
     const updatedPending = pendingApprovals.filter(p => p.id !== req.id && (p.targetId || p.details?.targetId) !== targetId);
     setPendingApprovals(updatedPending);
@@ -486,6 +588,11 @@ export default function AdminDashboard() {
     if (req.id) {
       try {
         await supabase.from("ApprovalRequests").update({ Status: "Rejected", ResolvedAt: new Date().toISOString() }).eq("Id", req.id);
+      } catch {}
+    }
+    if (targetId) {
+      try {
+        await supabase.from("ApprovalRequests").update({ Status: "Rejected", ResolvedAt: new Date().toISOString() }).ilike("Reason", `%${targetId}%`);
       } catch {}
     }
 

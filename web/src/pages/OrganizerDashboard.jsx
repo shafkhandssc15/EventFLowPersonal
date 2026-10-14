@@ -548,15 +548,21 @@ export default function OrganizerDashboard() {
         }
       }
 
-      // 2. Prepare Confirmed passes and booking record
-      const confirmedPasses = (booking.passes || []).map(p => ({
-        ...p,
-        status: "Confirmed",
-        paymentStatus: "Confirmed",
-        rejectionReason: null,
-        approvedAt: now,
-        approvedBy: user?.name || user?.email || "Organizer"
-      }));
+      // 2. Prepare Confirmed passes and booking record with guaranteed QR codes
+      const confirmedPasses = (booking.passes || []).map((p, idx) => {
+        const shortEv = String(booking?.eventId || "EV").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase();
+        const shortBk = String(booking?.bookingRef || "BK").replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase();
+        const passQr = p.qrCode || `EVENTFLOW-LK-${shortEv}-${shortBk}-0${idx + 1}`;
+        return {
+          ...p,
+          qrCode: passQr,
+          status: "Confirmed",
+          paymentStatus: "Confirmed",
+          rejectionReason: null,
+          approvedAt: now,
+          approvedBy: user?.name || user?.email || "Organizer"
+        };
+      });
 
       const confirmedBooking = {
         ...booking,
@@ -730,6 +736,7 @@ export default function OrganizerDashboard() {
       }
 
       await refreshBookings();
+      window.dispatchEvent(new Event("storage"));
 
       setSuccess(`✅ Payment for ${booking.attendeeName} (${booking.bookingRef}) APPROVED — Recorded in Supabase, Notifications (Email/SMS) sent & passes activated!`);
     } catch (err) {

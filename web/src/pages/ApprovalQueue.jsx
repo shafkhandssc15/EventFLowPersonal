@@ -91,10 +91,123 @@ export default function ApprovalQueue() {
       }
     } catch {}
 
+      // Auto-detect venues that are pending deletion in Supabase Venues table
+      try {
+        const { data: pendingVenues } = await supabase
+          .from("Venues")
+          .select("*")
+          .eq("IsPendingDeletion", true);
+
+        if (pendingVenues && pendingVenues.length > 0) {
+          for (const pv of pendingVenues) {
+            const pvId = pv.Id || pv.id;
+            const cleanPvId = String(pvId).toLowerCase();
+            const alreadyInList = dbPending.some(c => 
+              String(c.targetId || c.rawItem?.targetId || c.id).toLowerCase() === cleanPvId
+            );
+            if (!alreadyInList) {
+              const autoApprovalId = crypto.randomUUID();
+              const autoItem = {
+                id: autoApprovalId,
+                targetId: pvId,
+                type: "VENUE_DELETION",
+                reason: `Venue Deletion Request: "${pv.Name || pv.name || 'Venue'}" (by Venue Manager)`,
+                status: "PendingApproval",
+                createdAt: pv.CreatedAt || new Date().toISOString(),
+                isLocal: true,
+                rawItem: {
+                  id: autoApprovalId,
+                  targetId: pvId,
+                  name: pv.Name || pv.name || "Venue Deletion",
+                  email: "vendor.eventflow@gmail.com",
+                  role: "VendorVenueManager",
+                  nic: "—",
+                  contact: "—",
+                  type: "VENUE_DELETION",
+                  requestedBy: "Venue Manager",
+                  status: "PendingAdminApproval",
+                  submittedAt: pv.CreatedAt || new Date().toISOString(),
+                  details: {
+                    targetId: pvId,
+                    name: pv.Name || pv.name,
+                    location: pv.Location || pv.location,
+                    city: pv.City || pv.city,
+                    capacity: pv.Capacity || pv.capacity
+                  }
+                }
+              };
+              dbPending.push(autoItem);
+              supabase.from("ApprovalRequests").insert({
+                Id: autoApprovalId,
+                Status: "Pending",
+                Reason: JSON.stringify(autoItem.rawItem),
+                CreatedAt: new Date().toISOString()
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch {}
+
+      // Auto-detect events that are pending deletion in Supabase Events table
+      try {
+        const { data: pendingEvents } = await supabase
+          .from("Events")
+          .select("*")
+          .eq("Status", "PendingDeletion");
+
+        if (pendingEvents && pendingEvents.length > 0) {
+          for (const pe of pendingEvents) {
+            const peId = pe.Id || pe.id;
+            const cleanPeId = String(peId).toLowerCase();
+            const alreadyInList = dbPending.some(c => 
+              String(c.targetId || c.rawItem?.targetId || c.id).toLowerCase() === cleanPeId
+            );
+            if (!alreadyInList) {
+              const autoApprovalId = crypto.randomUUID();
+              const autoItem = {
+                id: autoApprovalId,
+                targetId: peId,
+                type: "EVENT_DELETION",
+                reason: `Event Deletion Request: "${pe.Title || pe.title || 'Event'}" (by Event Organizer)`,
+                status: "PendingApproval",
+                createdAt: pe.CreatedAt || new Date().toISOString(),
+                isLocal: true,
+                rawItem: {
+                  id: autoApprovalId,
+                  targetId: peId,
+                  name: pe.Title || pe.title || "Event Deletion",
+                  email: "organizer.eventflow@gmail.com",
+                  role: "Organizer",
+                  nic: "—",
+                  contact: "—",
+                  type: "EVENT_DELETION",
+                  requestedBy: "Event Organizer",
+                  status: "PendingAdminApproval",
+                  submittedAt: pe.CreatedAt || new Date().toISOString(),
+                  details: {
+                    targetId: peId,
+                    title: pe.Title || pe.title,
+                    category: pe.Category || pe.category,
+                    location: pe.Location || pe.location
+                  }
+                }
+              };
+              dbPending.push(autoItem);
+              supabase.from("ApprovalRequests").insert({
+                Id: autoApprovalId,
+                Status: "Pending",
+                Reason: JSON.stringify(autoItem.rawItem),
+                CreatedAt: new Date().toISOString()
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch {}
+
     try {
       const d = await api.approvalQueue().catch(() => []);
       const apiItems = Array.isArray(d) ? d : d.items || [];
-      
+
       const formattedLocal = localPending.map(lp => ({
         id: lp.id,
         targetId: lp.targetId || lp.details?.targetId || lp.id,
@@ -124,7 +237,18 @@ export default function ApprovalQueue() {
   useEffect(() => {
     load();
     window.addEventListener("storage", load);
-    return () => window.removeEventListener("storage", load);
+
+    const channel = supabase
+      .channel("approval-queue-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ApprovalRequests" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "Venues" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "Events" }, () => load())
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("storage", load);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function decide(id, approve) {
@@ -233,6 +357,11 @@ export default function ApprovalQueue() {
         if (reqId) {
           try {
             await supabase.from("ApprovalRequests").update({ Status: approve ? "Approved" : "Rejected", ResolvedAt: new Date().toISOString() }).eq("Id", reqId);
+          } catch {}
+        }
+        if (targetId) {
+          try {
+            await supabase.from("ApprovalRequests").update({ Status: approve ? "Approved" : "Rejected", ResolvedAt: new Date().toISOString() }).ilike("Reason", `%${targetId}%`);
           } catch {}
         }
         
