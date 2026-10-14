@@ -72,3 +72,42 @@ export function getVenueCoordinates(name = "", location = "", city = "") {
   return { lat: 6.9271, lng: 79.8612, city: "Colombo" };
 }
 
+/**
+ * Validates Sri Lankan and standard international contact/phone numbers.
+ * Supports:
+ * - Sri Lanka local mobile: 10 digits starting with 0 (e.g. 077 123 4567, 071-2345678)
+ * - Sri Lanka local landline: 10 digits starting with 0 (e.g. 011 269 1111)
+ * - Sri Lanka international: +94 followed by 9 digits (e.g. +94 77 123 4567, +94771234567)
+ * - Standard international numbers: + followed by 9 to 15 digits (ITU-T E.164)
+ */
+export function isValidContactNumber(phone) {
+  if (!phone || typeof phone !== "string") return false;
+  const trimmed = phone.trim();
+
+  // Basic structure check: only digits, spaces, hyphens, parentheses, optional leading +
+  if (!/^\+?[0-9\s\-()]{9,20}$/.test(trimmed)) return false;
+
+  const digits = trimmed.replace(/\D/g, "");
+
+  // Must have between 9 and 15 digits (ITU E.164 standard)
+  if (digits.length < 9 || digits.length > 15) return false;
+
+  // Reject all identical repeated digits (e.g. 0000000000, 1111111111)
+  if (/^(\d)\1+$/.test(digits)) return false;
+
+  // Sri Lanka international (+94 or 94...)
+  if (trimmed.startsWith("+94") || digits.startsWith("94")) {
+    const after94 = digits.startsWith("94") ? digits.slice(2) : digits;
+    return after94.length === 9;
+  }
+
+  // Sri Lanka local (starts with 0)
+  if (digits.startsWith("0")) {
+    return digits.length === 10;
+  }
+
+  // Other valid international numbers
+  return digits.length >= 9 && digits.length <= 15;
+}
+
+

@@ -7,7 +7,7 @@ import {
   IcCalendar, IcMapPin, IcUsers, IcArrowLeft, IcClock, IcTicket,
   IcCheckCircle, IcCompass, IcPlus, IcX, IcUser, IcShield
 } from "../components/Icons.jsx";
-import { supabase, formatLKR, FALLBACK_IMAGE, getVenueCoordinates } from "../api/supabase.js";
+import { supabase, formatLKR, FALLBACK_IMAGE, getVenueCoordinates, isValidContactNumber } from "../api/supabase.js";
 import VenueMap from "../components/VenueMap.jsx";
 import QRCodeVisual from "../components/QRCodeVisual.jsx";
 
@@ -174,10 +174,12 @@ export default function EventDetail() {
         if (!a.parentName.trim()) { setError(`Parent / Guardian's Full Name for Child (${a.name}) is compulsory.`); return; }
         if (!a.parentIdNumber.trim()) { setError(`Parent / Guardian's ${a.parentIdType === 'Passport' ? 'Passport' : 'NIC'} for Child (${a.name}) is compulsory.`); return; }
         if (!a.parentContact.trim()) { setError(`Parent / Guardian's Contact Phone for Child (${a.name}) is compulsory.`); return; }
+        if (!isValidContactNumber(a.parentContact)) { setError(`Please enter a valid Contact Phone for Child (${a.name})'s Parent / Guardian (e.g. 077 123 4567 or +94 77 123 4567).`); return; }
       } else {
         // Adult / regular attendee validation
         if (!a.idNumber.trim()) { setError(`${a.idType === 'Passport' ? 'Passport number' : 'National ID (NIC)'} for ${label} is compulsory.`); return; }
         if (!a.contact.trim()) { setError(`Mobile Contact number for ${label} is compulsory.`); return; }
+        if (!isValidContactNumber(a.contact)) { setError(`Please enter a valid Mobile Contact number for ${label} (e.g. 077 123 4567 or +94 77 123 4567).`); return; }
       }
     }
 

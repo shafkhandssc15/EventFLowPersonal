@@ -5,7 +5,7 @@ import {
   IcCheck, IcX, IcClock, IcSparkles, IcCheckCircle, IcChevronRight,
   IcMapPin, IcCalendar, IcTicket, IcEye, IcEyeOff
 } from "../components/Icons.jsx";
-import { supabase, saveSupabaseProfile } from "../api/supabase.js";
+import { supabase, saveSupabaseProfile, isValidContactNumber } from "../api/supabase.js";
 
 const ROLE_OPTS = [
   {
@@ -303,6 +303,10 @@ export default function AuthPage() {
       return;
     }
     if (!contact.trim()) { setError("Contact / Mobile Number is compulsory."); return; }
+    if (!isValidContactNumber(contact)) {
+      setError("Please enter a valid Contact / Mobile Number (e.g. 077 123 4567 or +94 77 123 4567).");
+      return;
+    }
     if (!address.trim()) { setError("Residential / Business Address is compulsory."); return; }
     if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
 

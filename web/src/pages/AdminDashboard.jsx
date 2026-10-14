@@ -4,7 +4,7 @@ import {
   IcDatabase, IcCheckCircle, IcUsers, IcBuilding, IcTicket,
   IcCheck, IcRefresh, IcShield, IcZap, IcPlus, IcUser, IcX
 } from "../components/Icons.jsx";
-import { supabase, SUPABASE_URL, formatLKR } from "../api/supabase.js";
+import { supabase, SUPABASE_URL, formatLKR, isValidContactNumber } from "../api/supabase.js";
 import { api } from "../api/client.js";
 
 export default function AdminDashboard() {
@@ -576,6 +576,10 @@ export default function AdminDashboard() {
     if (!newUserForm.nic.trim()) { setModalError("NIC number is compulsory."); return; }
     if (!newUserForm.email.trim()) { setModalError("Email address is compulsory."); return; }
     if (!newUserForm.contact.trim()) { setModalError("Contact number is compulsory."); return; }
+    if (!isValidContactNumber(newUserForm.contact)) {
+      setModalError("Please enter a valid Contact Mobile number (e.g. 077 123 4567 or +94 77 123 4567).");
+      return;
+    }
     if (!newUserForm.address.trim()) { setModalError("Address is compulsory."); return; }
 
     const createdUser = {

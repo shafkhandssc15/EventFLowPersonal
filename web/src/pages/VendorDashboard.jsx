@@ -7,7 +7,7 @@ import {
   IcCompass, IcUsers, IcClock, IcMail, IcShield, IcX, IcEye
 } from "../components/Icons.jsx";
 import VenueMap from "../components/VenueMap.jsx";
-import { supabase, formatLKR, FALLBACK_IMAGE, getVenueCoordinates } from "../api/supabase.js";
+import { supabase, formatLKR, FALLBACK_IMAGE, getVenueCoordinates, isValidContactNumber } from "../api/supabase.js";
 import ImageUploader from "../components/ImageUploader.jsx";
 import { useRealtime } from "../context/RealtimeContext.jsx";
 
@@ -219,6 +219,10 @@ export default function VendorDashboard() {
     if (!selectedVenueForInquiry) return;
     if (!inquiryForm.eventTitle.trim()) { setError("Event Title is required."); return; }
     if (!inquiryForm.requestedDate) { setError("Target Date is required."); return; }
+    if (inquiryForm.contactPhone && !isValidContactNumber(inquiryForm.contactPhone)) {
+      setError("Please enter a valid Contact Phone number (e.g. 077 123 4567 or +94 77 123 4567).");
+      return;
+    }
 
     const newInquiry = {
       id: `inq-lk-${Date.now()}`,
@@ -332,6 +336,10 @@ export default function VendorDashboard() {
     if (!vf.name.trim()) { setError("Venue Name is required."); return; }
     if (!vf.location.trim()) { setError("Full Address is required."); return; }
     if (!vf.lat || !vf.lng) { setError("Valid Latitude & Longitude or Map Link is required."); return; }
+    if (vf.contactPhone && !isValidContactNumber(vf.contactPhone)) {
+      setError("Please enter a valid Venue Contact Phone number (e.g. 011 269 1111 or +94 77 123 4567).");
+      return;
+    }
 
     try {
       const amenitiesList = typeof vf.amenities === "string"
@@ -548,6 +556,10 @@ export default function VendorDashboard() {
     }
 
     if (!rf.name.trim()) { setError("Vendor / Service Name is required."); return; }
+    if (rf.contactPhone && !isValidContactNumber(rf.contactPhone)) {
+      setError("Please enter a valid Vendor Contact Phone number (e.g. 077 123 4567 or +94 77 123 4567).");
+      return;
+    }
 
     try {
       const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);

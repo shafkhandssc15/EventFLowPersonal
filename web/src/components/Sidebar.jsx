@@ -7,6 +7,7 @@ import {
   IcLogOut, IcTicket, IcDatabase, IcChevronLeft, IcChevronRight, IcCompass,
   IcSettings, IcUser, IcCheck, IcX
 } from "./Icons.jsx";
+import { isValidContactNumber } from "../api/supabase.js";
 
 const NAV = [
   { to: "/",          Icon: IcHome,        label: "Discover Events", roles: ["Organizer", "Attendee", "Admin", "VendorVenueManager"] },
@@ -39,6 +40,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
     nic: ""
   });
   const [profileSuccess, setProfileSuccess] = useState(false);
+  const [profileError, setProfileError] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem("ef_theme") || "dark";
@@ -68,11 +70,20 @@ export default function Sidebar({ collapsed, setCollapsed }) {
       nic: user?.nic || ""
     });
     setProfileSuccess(false);
+    setProfileError("");
     setShowProfileModal(true);
   }
 
   function handleSaveProfile(e) {
     e.preventDefault();
+    setProfileError("");
+    if (!profileForm.name.trim()) { setProfileError("Full Name is compulsory."); return; }
+    if (!profileForm.nic.trim()) { setProfileError("Sri Lankan NIC is compulsory."); return; }
+    if (!profileForm.contact.trim()) { setProfileError("Mobile Contact is compulsory."); return; }
+    if (!isValidContactNumber(profileForm.contact)) {
+      setProfileError("Please enter a valid Contact Mobile number (e.g. 077 123 4567 or +94 77 123 4567).");
+      return;
+    }
     const updated = {
       ...user,
       name: profileForm.name.trim(),
@@ -466,6 +477,12 @@ export default function Sidebar({ collapsed, setCollapsed }) {
                 <IcX style={{ width: 18, height: 18 }} />
               </button>
             </div>
+
+            {profileError && (
+              <div className="alert alert-danger" style={{ marginBottom: 16 }}>
+                <IcX style={{ width: 15, height: 15, flexShrink: 0 }} /> {profileError}
+              </div>
+            )}
 
             {profileSuccess && (
               <div className="alert alert-success" style={{ marginBottom: 16 }}>
