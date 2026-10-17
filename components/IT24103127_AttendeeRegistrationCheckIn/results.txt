@@ -3,28 +3,28 @@
 ================================================================================
 
 [TEST CASE 1] Attendee Registration & QR Code Generation
-  [PASS] Registered Attendee 1: ID=reg-90abcdf6, Name='Kamal Gunaratne', QR='QR-B8934862', Status='Registered'
-  [PASS] Registered Attendee 2: ID=reg-84cb5e7c, Name='Dilani Jayawardena', QR='QR-508889D7', Status='Registered'
+  [PASS] Registered Attendee 1: ID=reg-9241bbdc, Name='Kamal Gunaratne', QR='QR-BD0E8795', Status='Registered'
+  [PASS] Registered Attendee 2: ID=reg-5fbe1e5b, Name='Dilani Jayawardena', QR='QR-E40B4C98', Status='Registered'
 
 [TEST CASE 2] Confirmation Email & SMS Notification Dispatch
   [PASS] Total Notifications Sent: 4 notifications logged
-    - [Email] Recipient: kamal@techlanka.lk | Subject: 'Registration Confirmed! Your QR Code Ticket: QR-B8934862'
+    - [Email] Recipient: kamal@techlanka.lk | Subject: 'Registration Confirmed! Your QR Code Ticket: QR-BD0E8795'
     - [SMS] Recipient: +94771234567 | Subject: 'Ticket Confirmation'
-    - [Email] Recipient: dilani@horizon.lk | Subject: 'Registration Confirmed! Your QR Code Ticket: QR-508889D7'
+    - [Email] Recipient: dilani@horizon.lk | Subject: 'Registration Confirmed! Your QR Code Ticket: QR-E40B4C98'
     - [SMS] Recipient: +94719876543 | Subject: 'Ticket Confirmation'
 
 [TEST CASE 3] Ticket Transfer Workflow
-  [PASS] Transferred Ticket: RegID=reg-84cb5e7c, New Name='Chaminda Vass', Status='Transferred'
+  [PASS] Transferred Ticket: RegID=reg-5fbe1e5b, New Name='Chaminda Vass', Status='Transferred'
 
 [TEST CASE 4] QR Check-in Processing & Duplicate Scan Prevention
-  [PASS] Valid Check-in 1 Approved: Attendee='Kamal Gunaratne', QR='QR-B8934862', Status='SUCCESS'
-  [PASS] SUCCESS: Duplicate Check-in Prevention caught expected exception -> 'SECURITY ALERT: Duplicate check-in detected! Ticket QR 'QR-B8934862' for Kamal Gunaratne was ALREADY scanned.'
+  [PASS] Valid Check-in 1 Approved: Attendee='Kamal Gunaratne', QR='QR-BD0E8795', Status='SUCCESS'
+  [PASS] SUCCESS: Duplicate Check-in Prevention caught expected exception -> 'SECURITY ALERT: Duplicate check-in detected! Ticket QR 'QR-BD0E8795' for Kamal Gunaratne was ALREADY scanned.'
 
 [TEST CASE 5] Attendee Roster CSV Export
   [PASS] CSV Export Generated: 3 lines (Header + 2 attendee records)
     Registration ID,Attendee Name,Email,Phone,QR Code,Status,Registered At
-    reg-90abcdf6,Kamal Gunaratne,kamal@techlanka.lk,+94771234567,QR-B8934862,CheckedIn,2026-10-13T07:52:40.296911
-    reg-84cb5e7c,Chaminda Vass,chaminda@sports.lk,+94701112223,QR-508889D7,Transferred,2026-10-13T07:52:40.296963
+    reg-9241bbdc,Kamal Gunaratne,kamal@techlanka.lk,+94771234567,QR-BD0E8795,CheckedIn,2026-10-17T16:07:19.492889
+    reg-5fbe1e5b,Chaminda Vass,chaminda@sports.lk,+94701112223,QR-E40B4C98,Transferred,2026-10-17T16:07:19.492917
 
 [TEST CASE 6] Agent Presentable English Audit Report Output
 

@@ -9,12 +9,12 @@
   [PASS] Search Venues Result: Found 2 venues available on 2027-11-20
 
 [TEST CASE 2] Booking Creation & Status Workflow
-  [PASS] Created Booking 1: ID=bk-5c44bce7, Resource='Cinnamon Grand Oak Room', Cost=LKR 360,000.00, Status='Requested'
+  [PASS] Created Booking 1: ID=bk-c20f3964, Resource='Cinnamon Grand Oak Room', Cost=LKR 360,000.00, Status='Requested'
   [PASS] Confirmed Booking 1: Status='Confirmed'
 
 [TEST CASE 3] Double-Booking Conflict Prevention Enforcement
   [PASS] Created Competing Booking 2 (Status='Requested') on same date for Cinnamon Grand Oak Room
-  [PASS] SUCCESS: Double-Booking Conflict caught expected exception -> 'DOUBLE-BOOKING CONFLICT: Resource 'vnu-10cc9d14' already has a Confirmed booking on 2027-11-20. Booking request REJECTED.'
+  [PASS] SUCCESS: Double-Booking Conflict caught expected exception -> 'DOUBLE-BOOKING CONFLICT: Resource 'vnu-aef45f58' already has a Confirmed booking on 2027-11-20. Booking request REJECTED.'
 
 [TEST CASE 4] Alternate Venue Recommendation Engine
   [PASS] Alternate Venues Found: 1
@@ -26,7 +26,7 @@
             VENUE BOOKING CONFLICT & ALTERNATE PROPOSAL REPORT                 
 ================================================================================
  Agent Name         : Venue & Vendor Matchmaker Agent (IT24101737)
- Conflict Target    : Cinnamon Grand Oak Room (ID: vnu-10cc9d14)
+ Conflict Target    : Cinnamon Grand Oak Room (ID: vnu-aef45f58)
  Requested Date     : 2027-11-20
  Required Capacity   : 350 attendees
 --------------------------------------------------------------------------------

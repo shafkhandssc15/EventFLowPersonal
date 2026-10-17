@@ -24,6 +24,12 @@ const STATUS_BADGE = {
   "Pending Deletion":   "badge-amber",
 };
 
+function getLocalNowString() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
 // Robust Event Avatar / DP Component: Prevents broken image icons with category covers & fallback initials badge
 function EventAvatar({ event, size = 48 }) {
   const cat = event?.category || "Other";
@@ -919,6 +925,17 @@ export default function OrganizerDashboard() {
       return;
     }
 
+    // Date validation: prevent past dates and ensure endDate is after startDate
+    const nowMs = Date.now() - 120000;
+    if (form.startDate && new Date(form.startDate).getTime() < nowMs && !editingEventId) {
+      setError("Event start date cannot be in the past. Please select an upcoming date and time.");
+      return;
+    }
+    if (form.startDate && form.endDate && new Date(form.endDate).getTime() <= new Date(form.startDate).getTime()) {
+      setError("Event end date and time must be after the start date and time.");
+      return;
+    }
+
     setBusy(true);
 
     try {
@@ -1348,12 +1365,14 @@ export default function OrganizerDashboard() {
                 <div className="form-group">
                   <label className="form-label">Start Date &amp; Time *</label>
                   <input className="form-input" type="datetime-local" required
+                    min={getLocalNowString()}
                     value={form.startDate} onChange={e => setF("startDate", e.target.value)} />
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">End Date &amp; Time *</label>
                   <input className="form-input" type="datetime-local" required
+                    min={form.startDate || getLocalNowString()}
                     value={form.endDate} onChange={e => setF("endDate", e.target.value)} />
                 </div>
 

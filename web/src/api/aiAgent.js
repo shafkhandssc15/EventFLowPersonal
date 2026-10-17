@@ -323,11 +323,24 @@ JSON OUTPUT SPECIFICATION:
       targetAudience: `Target ${capNum} attendees and key stakeholders`
     };
 
+    const titleSuggestions = generateCreativeEventTitles({
+      objective,
+      category: parsedPlan.category || "Special Event",
+      location: targetLoc,
+      capacity: capNum
+    });
+
+    let finalTitle = parsedPlan.title;
+    if (!finalTitle || finalTitle.length > 55 || /^(plan|host|organize|setup|we want to host)\b/i.test(finalTitle)) {
+      finalTitle = titleSuggestions[0];
+    }
+
     return {
       id: `wf-${Date.now()}`,
       status: requiresSafetyGate ? "PausedForApproval" : "completed",
       paused_for_approval: requiresSafetyGate,
-      title: parsedPlan.title,
+      title: finalTitle,
+      titleSuggestions,
       category: parsedPlan.category || "Special Event",
       summary: parsedPlan.summary || `Strategic blueprint for "${objective}" in ${targetLoc}.`,
       plannerStrategy,
@@ -858,6 +871,93 @@ export function calculateVenueFit(v, capacity = 500, budget = 1000000, targetLoc
 }
 
 /**
+ * Synthesizes creative, polished, high-converting event titles matching the domain, city, and theme.
+ */
+export function generateCreativeEventTitles({ objective = "", category = "", location = "", capacity = 200 } = {}) {
+  // Extract city/location cleanly
+  let city = (location || "").split(/[,/]/)[0].trim();
+  if (!city || city.toLowerCase() === "sri lanka" || city.toLowerCase() === "preferred location" || city.toLowerCase().includes("province")) {
+    const cityMatch = (objective + " " + location).match(/\b(Galle|Colombo|Kandy|Battaramulla|Negombo|Jaffna|Matara|Nuwara Eliya|Kurunegala|Gampaha|Bentota|Mount Lavinia|Trincomalee)\b/i);
+    city = cityMatch ? cityMatch[1] : (city.replace(/province/i, "").trim() || "National");
+  }
+
+  const lower = (objective || "").toLowerCase();
+  const titles = [];
+
+  if (/musical|music|concert|dj|edm|band|sound|audio|symphony|harmonic/i.test(lower)) {
+    const isTech = /tech|digital|ai|virtual|stream|cyber/i.test(lower);
+    if (isTech) {
+      titles.push(`${city} TechSymphony: Future Stage & Gala 2027`);
+      titles.push(`Southern Pulse: High-Tech Musical Experience`);
+      titles.push(`${city} CyberHarmonics & Executive Live Gala`);
+      titles.push(`Echo & Innovation: High-Tech Musical Showcase`);
+      titles.push(`${city} SoundWave: Futuristic Arts & Music Night`);
+    } else {
+      titles.push(`${city} Harmonic Waves: Live Musical Festival 2027`);
+      titles.push(`The Grand ${city} Music & Arts Gala`);
+      titles.push(`${city} Live Stage: Acoustic & Beats Night`);
+      titles.push(`Rhythm of the South: ${city} Musical Showcase`);
+      titles.push(`Lanka Melody & Lights Festival 2027`);
+    }
+  } else if (/sports|badminton|cricket|tournament|championship|cup|football|marathon|tennis/i.test(lower)) {
+    let sport = "Sports";
+    if (lower.includes("badminton")) sport = "Badminton";
+    else if (lower.includes("cricket")) sport = "Cricket";
+    else if (lower.includes("football")) sport = "Football";
+    else if (lower.includes("tennis")) sport = "Tennis";
+    else if (lower.includes("marathon")) sport = "Marathon";
+
+    titles.push(`${city} ${sport} Champions Cup 2027`);
+    titles.push(`Inter-School ${sport} Masters: ${city} Trophy`);
+    titles.push(`${city} Premier ${sport} Championship`);
+    titles.push(`Titans of ${city}: Annual ${sport} Games`);
+    titles.push(`Central Province ${sport} Super League 2027`);
+  } else if (/med|pediatric|doctor|surgical|health|pharma|clinic|hospital|medicine/i.test(lower)) {
+    titles.push(`${city} MedSurg & Clinical Innovation Congress 2027`);
+    titles.push(`National Pediatric & Healthcare Leadership Summit`);
+    titles.push(`${city} Medical Research & Surgical Excellence Forum`);
+    titles.push(`Lanka Healthcare Horizons Annual Conference`);
+    titles.push(`${city} Clinical Physicians & Surgeons Colloquium`);
+  } else if (/gala|banquet|dinner|awards|corporate|luxury|honou?r/i.test(lower)) {
+    titles.push(`${city} Luminary: Corporate Gala & Awards Evening`);
+    titles.push(`The Grand ${city} Executive Honours Banquet 2027`);
+    titles.push(`Horizon Leadership Gala & Dinner Soirée`);
+    titles.push(`Apex Corporate Excellence Celebration: ${city}`);
+    titles.push(`${city} Prestige: Annual Leaders Gala Dinner`);
+  } else if (/tech|ai|code|hackathon|developer|software|cloud|cyber|startup/i.test(lower)) {
+    titles.push(`${city} TechForge: National Developer Summit 2027`);
+    titles.push(`CyberHorizon: AI & Cloud Innovation Expo`);
+    titles.push(`${city} Digital Future & Engineering Conference`);
+    titles.push(`Lanka CodeCraft: Next-Gen Developer Con 2027`);
+    titles.push(`${city} TechPulse: High-Impact Innovation Forum`);
+  } else if (/exhibition|expo|trade|fair|showcase|bazaar/i.test(lower)) {
+    titles.push(`${city} International Trade & Innovation Expo 2027`);
+    titles.push(`The Grand ${city} Exhibition & Industry Fair`);
+    titles.push(`Global Horizons Expo: ${city} 2027`);
+    titles.push(`${city} Showcase: Business & Enterprise Fair`);
+    titles.push(`Lanka Commercial Innovation Exposition`);
+  } else {
+    // Dynamic synthesis
+    const cleaned = objective
+      .replace(/^(plan|host|organize|setup|we want to host|create)\s+(an?|the)?\s*/i, "")
+      .replace(/\b(with|for|at|in|and)\b.*$/i, "")
+      .trim();
+    const shortTopic = cleaned.length >= 4 && cleaned.length <= 32
+      ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+      : (category ? `${category} Gathering` : "Executive Summit");
+
+    titles.push(`${city} ${shortTopic} 2027`);
+    titles.push(`The Grand ${city} ${category || "Special"} Experience`);
+    titles.push(`${city} Horizon: Next-Generation Summit`);
+    titles.push(`Lanka ${shortTopic}: Live Edition 2027`);
+    titles.push(`${city} Signature Gala & Showcase`);
+  }
+
+  const unique = Array.from(new Set(titles.filter(Boolean)));
+  return unique.length > 0 ? unique : [`${city} Live Event Experience 2027`];
+}
+
+/**
  * Deterministic domain synthesis fallback that strictly reflects user objective
  * and Supabase venues even if LLM network call times out.
  */
@@ -876,14 +976,17 @@ function fallbackCognitiveEngine({ objective, capacity, budget, location, venues
   } else if (/wedding|gala|banquet|dinner/i.test(lower)) {
     category = "Social";
     domainLabel = "Gala & Nuptial Celebration";
+  } else if (/tech|ai|code|developer|hackathon/i.test(lower)) {
+    category = "Technology";
+    domainLabel = "Technology & Innovation";
+  } else if (/med|doctor|health|pediatric|surgical/i.test(lower)) {
+    category = "Conference";
+    domainLabel = "Medical & Scientific Congress";
   }
 
-  // Generate title from objective
-  let title = objective
-    .replace(/^(plan|host|organize|setup|we want to host)\s+(an?|the)?\s*/i, "")
-    .trim();
-  title = title.charAt(0).toUpperCase() + title.slice(1);
-  if (!/202\d/.test(title)) title += " 2027";
+  // Synthesize creative title suggestions
+  const titleSuggestions = generateCreativeEventTitles({ objective, category, location, capacity });
+  const title = titleSuggestions[0];
 
   // Score real venues from Supabase with realistic multi-factor analysis
   const scoredVenues = venues.map(v => {
@@ -910,6 +1013,7 @@ function fallbackCognitiveEngine({ objective, capacity, budget, location, venues
     status: requiresSafetyGate ? "PausedForApproval" : "completed",
     paused_for_approval: requiresSafetyGate,
     title,
+    titleSuggestions,
     category,
     summary: `Strategic blueprint for "${objective}". Optimized for ${capacity} attendees at ${topVenue.name} with target budget of ${formatLKR(budget)}.${refinementNotes ? ` Revised with: "${refinementNotes}"` : ""}`,
     plannerStrategy: {

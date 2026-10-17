@@ -3,7 +3,7 @@
 ================================================================================
 
 [TEST CASE 1] Event Creation & Status Workflow
-  [PASS] Event Created: ID=evt-20b3da1d, Title='Global AI & Robotics Summit 2027', Status='Draft', Capacity=300
+  [PASS] Event Created: ID=evt-d518f0ed, Title='Global AI & Robotics Summit 2027', Status='Draft', Capacity=300
   [PASS] Event Published: Status='Published'
 
 [TEST CASE 2] Ticket Tier Configuration & Pricing Strategy
@@ -19,7 +19,7 @@
 
 [TEST CASE 4] Waitlist Registration & Cancellation Re-allocation
   [PASS] Waitlist Joined: Successfully added Sahan Karunaratne to the waitlist (Position #1).
-  [PASS] Ticket Cancelled: Ticket ID=tkt-5ca19d74 | Status=Cancelled
+  [PASS] Ticket Cancelled: Ticket ID=tkt-7cee20d2 | Status=Cancelled
   [PASS] Waitlist Re-allocation: Waitlist spot offered to Sahan Karunaratne (sahan@techcorp.lk).
 
 [TEST CASE 5] Agent Presentable English Executive Sales Summary Output
@@ -28,7 +28,7 @@
                  EVENT TICKETING & EXECUTIVE SALES REPORT                      
 ================================================================================
  Agent Name        : Event & Ticketing Specialist Agent (IT24102308)
- Event Title       : Global AI & Robotics Summit 2027 (ID: evt-20b3da1d)
+ Event Title       : Global AI & Robotics Summit 2027 (ID: evt-d518f0ed)
  Current Status    : PUBLISHED
  Location          : BMICH Main Convention Hall, Colombo
  Event Dates       : 2027-11-15T09:00:00Z to 2027-11-16T18:00:00Z

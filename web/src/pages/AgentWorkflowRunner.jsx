@@ -1,14 +1,20 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useRealtime } from "../context/RealtimeContext.jsx";
-import { runAIAgentWorkflow } from "../api/aiAgent.js";
+import { runAIAgentWorkflow, generateCreativeEventTitles } from "../api/aiAgent.js";
 import {
   IcZap, IcShield, IcTarget, IcSearch, IcCpu,
   IcCheck, IcX, IcCalendar, IcMapPin, IcUsers, IcCheckCircle,
-  IcAlert, IcBuilding, IcClock, IcSparkles, IcTag, IcPlus
+  IcAlert, IcBuilding, IcClock, IcSparkles, IcTag, IcPlus, IcEdit
 } from "../components/Icons.jsx";
 import { formatLKR, supabase } from "../api/supabase.js";
+
+function getLocalNowString() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
 
 const AGENTS = [
   { key: "PlannerCoordinatorAgent", label: "1. Planner Coordinator", Icon: IcTarget, desc: "Deconstructs objectives, architects timeline & milestones" },
@@ -18,8 +24,9 @@ const AGENTS = [
 ];
 
 export default function AgentWorkflowRunner() {
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const { venues, saveEvent } = useRealtime();
+  const { venues, upsertEvent, saveEvent } = useRealtime();
 
   const [form, setForm] = useState({
     objective: "Host a 500-person high-tech musical in Galle with VIP networking dinner, keynote auditorium, catering, and livestreaming.",
@@ -35,6 +42,11 @@ export default function AgentWorkflowRunner() {
   const [currentStepIdx, setCurrentStepIdx] = useState(-1);
   const [deployedEventId, setDeployedEventId] = useState(null);
   const [deploySuccess, setDeploySuccess] = useState(false);
+
+  // Title editing & AI suggestion state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [activeTitleSuggestions, setActiveTitleSuggestions] = useState([]);
 
   // Revision & Editing Studio State (Triggered by "Reject / Revise")
   const [isRevising, setIsRevising] = useState(false);
@@ -57,9 +69,15 @@ export default function AgentWorkflowRunner() {
       return;
     }
 
+    if (form.eventDate && new Date(form.eventDate).getTime() < Date.now() - 60000) {
+      setError("Target event date cannot be in the past. Please select an upcoming date and time.");
+      return;
+    }
+
     setError(null);
     setWorkflow(null);
     setIsRevising(false);
+    setIsEditingTitle(false);
     setBusy(true);
     setDeployedEventId(null);
     setDeploySuccess(false);
@@ -92,6 +110,13 @@ export default function AgentWorkflowRunner() {
       });
 
       setWorkflow(plan);
+      setTitleDraft(plan.title);
+      setActiveTitleSuggestions(plan.titleSuggestions || generateCreativeEventTitles({
+        objective: form.objective,
+        category: plan.category,
+        location: form.location,
+        capacity: form.capacity
+      }));
     } catch (err) {
       setError(err.message || "Failed to generate AI plan");
     } finally {
@@ -175,6 +200,12 @@ export default function AgentWorkflowRunner() {
   // Deploy this generated plan directly as a real event in Supabase
   async function handleDeployEvent() {
     if (!workflow) return;
+
+    if (form.eventDate && new Date(form.eventDate).getTime() < Date.now() - 60000) {
+      setError("Event target date cannot be in the past. Please select an upcoming date and time.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
 
@@ -186,19 +217,21 @@ export default function AgentWorkflowRunner() {
       const targetEndDate = new Date(new Date(targetDate).getTime() + 3600000 * 8).toISOString();
 
       // Form ticket types
-      const mappedTicketTypes = (workflow.ticketTiers || []).map((t) => ({
+      const mappedTicketTypes = (workflow.ticketTiers || []).map((t, idx) => ({
         id: crypto.randomUUID(),
-        name: t.name,
+        name: t.name || `Tier ${idx + 1}`,
         price: Number(t.price) || 0,
+        quantity: Number(t.allocatedQty) || 50,
         capacity: Number(t.allocatedQty) || 50,
         available: Number(t.allocatedQty) || 50,
+        sold: 0
       }));
 
       const newEvent = {
         id: crypto.randomUUID(),
         organizerId: user?.id || "00000000-0000-0000-0000-0000000000aa",
         organizerName: user?.name || user?.email || "EventFlow Organizer",
-        organizerEmail: user?.email || "",
+        organizerEmail: user?.email || "organizer.eventflow@gmail.com",
         title: workflow.title,
         description: workflow.summary,
         category: workflow.category || "Concert",
@@ -208,12 +241,14 @@ export default function AgentWorkflowRunner() {
         startDate: targetDate,
         endDate: targetEndDate,
         status: "Published",
+        image: topVenue?.image || "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&q=80",
         ticketTypes: mappedTicketTypes,
         createdAt: new Date().toISOString()
       };
 
-      if (saveEvent) {
-        await saveEvent(newEvent);
+      const saveFn = upsertEvent || saveEvent;
+      if (saveFn) {
+        await saveFn(newEvent, false);
       } else {
         await supabase.from("Events").insert({
           Id: newEvent.id,
@@ -233,6 +268,9 @@ export default function AgentWorkflowRunner() {
 
       setDeployedEventId(newEvent.id);
       setDeploySuccess(true);
+
+      // Navigate directly to the live event page
+      navigate(`/events/${newEvent.id}`);
     } catch (err) {
       setError("Failed to deploy event: " + (err.message || String(err)));
     } finally {
@@ -360,7 +398,7 @@ export default function AgentWorkflowRunner() {
 
               <div className="form-group">
                 <label className="form-label">Target Date (Optional)</label>
-                <input className="form-input" type="datetime-local" value={form.eventDate}
+                <input className="form-input" type="datetime-local" min={getLocalNowString()} value={form.eventDate}
                   onChange={e => setF("eventDate", e.target.value)} />
               </div>
 
@@ -560,9 +598,140 @@ export default function AgentWorkflowRunner() {
                 <div className="card" style={{ background:"var(--c-bg-1)", border: "1px solid var(--c-blue)" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 260 }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: "#ffffff", letterSpacing: "-0.01em" }}>
-                        {workflow.title}
-                      </div>
+                      {!isEditingTitle ? (
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: "#ffffff", letterSpacing: "-0.01em" }}>
+                              {workflow.title}
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              style={{ fontSize: 11, padding: "3px 8px", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.3)" }}
+                              onClick={() => {
+                                setTitleDraft(workflow.title);
+                                setIsEditingTitle(true);
+                              }}
+                              title="Edit Event Title"
+                            >
+                              <IcEdit style={{ width: 12, height: 12 }} /> Edit Title
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              style={{ fontSize: 11, padding: "3px 8px", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.3)" }}
+                              onClick={() => {
+                                setTitleDraft(workflow.title);
+                                setIsEditingTitle(true);
+                                if (!activeTitleSuggestions || activeTitleSuggestions.length === 0) {
+                                  const fresh = generateCreativeEventTitles({
+                                    objective: form.objective,
+                                    category: workflow.category,
+                                    location: form.location,
+                                    capacity: form.capacity
+                                  });
+                                  setActiveTitleSuggestions(fresh);
+                                }
+                              }}
+                              title="View AI Title Suggestions"
+                            >
+                              <IcSparkles style={{ width: 12, height: 12 }} /> AI Suggest Titles
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 8, border: "1px solid rgba(96,165,250,0.3)", marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#93c5fd", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                            <IcEdit style={{ width: 12, height: 12 }} /> Customize Event Title &amp; AI Suggestions
+                          </div>
+                          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                            <input
+                              className="form-input"
+                              style={{ fontSize: 14, fontWeight: 700, color: "#fff", background: "#0b0f19", flex: 1 }}
+                              value={titleDraft}
+                              onChange={e => setTitleDraft(e.target.value)}
+                              placeholder="Enter custom event title..."
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => {
+                                const clean = titleDraft.trim();
+                                if (clean) {
+                                  setWorkflow(prev => ({ ...prev, title: clean }));
+                                  setEditFields(f => ({ ...f, title: clean }));
+                                }
+                                setIsEditingTitle(false);
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => {
+                                setTitleDraft(workflow.title);
+                                setIsEditingTitle(false);
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+
+                          {/* AI Suggestion Pills */}
+                          {activeTitleSuggestions && activeTitleSuggestions.length > 0 && (
+                            <div>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                <div style={{ fontSize: 10, color: "var(--c-text-3)", display: "flex", alignItems: "center", gap: 4 }}>
+                                  <IcSparkles style={{ width: 10, height: 10, color: "#a78bfa" }} />
+                                  <span>Click an AI title to apply immediately:</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const fresh = generateCreativeEventTitles({
+                                      objective: form.objective,
+                                      category: workflow.category,
+                                      location: form.location,
+                                      capacity: form.capacity
+                                    });
+                                    setActiveTitleSuggestions([...fresh].sort(() => Math.random() - 0.5));
+                                  }}
+                                  style={{ background: "none", border: "none", color: "#60a5fa", fontSize: 10, cursor: "pointer", textDecoration: "underline" }}
+                                >
+                                  Shuffle Ideas 🎲
+                                </button>
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {activeTitleSuggestions.map((sug, sIdx) => (
+                                  <button
+                                    key={sIdx}
+                                    type="button"
+                                    onClick={() => {
+                                      setTitleDraft(sug);
+                                      setWorkflow(prev => ({ ...prev, title: sug }));
+                                      setEditFields(f => ({ ...f, title: sug }));
+                                    }}
+                                    style={{
+                                      fontSize: 11,
+                                      background: titleDraft === sug ? "rgba(96,165,250,0.25)" : "rgba(255,255,255,0.05)",
+                                      border: titleDraft === sug ? "1px solid #60a5fa" : "1px solid rgba(255,255,255,0.1)",
+                                      borderRadius: 6,
+                                      padding: "4px 9px",
+                                      color: titleDraft === sug ? "#93c5fd" : "var(--c-text-2)",
+                                      cursor: "pointer",
+                                      textAlign: "left"
+                                    }}
+                                  >
+                                    ✨ {sug}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div style={{ fontSize: 13, color: "var(--c-text-2)", marginTop: 6, lineHeight: 1.5 }}>
                         {workflow.summary}
                       </div>

@@ -544,6 +544,7 @@ export function RealtimeProvider({ children }) {
     lastUpdate,
     toasts,
     upsertEvent,
+    saveEvent: upsertEvent,
     deleteEvent,
     deleteVenue,
     refresh,

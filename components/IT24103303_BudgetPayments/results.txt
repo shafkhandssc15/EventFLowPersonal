@@ -3,7 +3,7 @@
 ================================================================================
 
 [TEST CASE 1] Event Budget Allocation
-  [PASS] Budget Created: ID=bgt-2a4d9330, Total=LKR 1,500,000.00, 80% Threshold=LKR 1,200,000.00
+  [PASS] Budget Created: ID=bgt-ed58213d, Total=LKR 1,500,000.00, 80% Threshold=LKR 1,200,000.00
 
 [TEST CASE 2] Expense Tracking (Under 80% Threshold - Auto Approval)
   [PASS] Added Expense 1: Amount=LKR 400,000.00 | Status='Approved' | Requires Human Approval=False
@@ -17,7 +17,7 @@
   [PASS] Approval Request Reviewed: Decision='Approved', Reviewed By='Finance Director Sunil'
 
 [TEST CASE 5] Payment Processing & Transaction Logging
-  [PASS] Payment Processed: ID=pay-f8d88af6, Ref='ch_3Mv89x2eZvKY', Amount=LKR 400,000.00, Status='Completed'
+  [PASS] Payment Processed: ID=pay-e515f8e3, Ref='ch_3Mv89x2eZvKY', Amount=LKR 400,000.00, Status='Completed'
 
 [TEST CASE 6] Budget vs. Actual Analytics Calculation
   [PASS] Total Budget : LKR 1,500,000.00
@@ -32,7 +32,7 @@
                BUDGET VS. ACTUAL FINANCIAL ANALYTICS REPORT                     
 ================================================================================
  Agent Name         : Budget & Financial Controller Agent (IT24103303)
- Budget Reference   : bgt-2a4d9330
+ Budget Reference   : bgt-ed58213d
  Event Identifier   : evt-product-launch-2027
 --------------------------------------------------------------------------------
  EXECUTIVE FINANCIAL SUMMARY:
